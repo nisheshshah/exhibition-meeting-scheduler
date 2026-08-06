@@ -582,20 +582,10 @@
   ];
 
   function getSalesmen() {
-    try {
-      const stored = localStorage.getItem('uo_salesmen');
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        if (Array.isArray(parsed) && parsed.length >= defaultSalesmen.length) {
-          return parsed;
-        }
-      }
-    } catch(e) {}
-    try { localStorage.removeItem('uo_salesmen'); } catch(e) {}
     return defaultSalesmen;
   }
 
-  let salesmen = getSalesmen();
+  let salesmen = [...defaultSalesmen];
 
   function saveSalesmenList(newList) {
     salesmen = newList;
@@ -867,26 +857,30 @@
   }
 
   function initFromURL() {
-    const url = new URL(window.location.href);
-    const sParam = url.searchParams.get('s') || url.searchParams.get('id') || url.searchParams.get('name') || url.searchParams.get('rep');
-    const adminParam = url.searchParams.get('admin') || url.searchParams.get('mode');
-    const viewParam = url.searchParams.get('view') || url.searchParams.get('schedule');
+    salesmen = [...defaultSalesmen];
+    const urlParams = new URLSearchParams(window.location.search);
+    const sParam = urlParams.get('s') || urlParams.get('id') || urlParams.get('name') || urlParams.get('rep');
+    const adminParam = urlParams.get('admin') || urlParams.get('mode');
+    const viewParam = urlParams.get('view') || urlParams.get('schedule');
 
     if (sParam) {
-      const cleanParam = sParam.toLowerCase().trim().replace(/[-_]/g, ' ');
-      const allRosters = salesmen.concat(defaultSalesmen);
-      const found = allRosters.find(s => 
-        s.id.toLowerCase() === cleanParam ||
-        s.name.toLowerCase() === cleanParam ||
-        getSlug(s.name) === sParam.toLowerCase() ||
-        getSlug(s.name) === cleanParam ||
-        s.name.toLowerCase().replace(/\s+/g, '') === cleanParam.replace(/\s+/g, '') ||
-        s.name.toLowerCase().includes(cleanParam) ||
-        cleanParam.includes(s.name.toLowerCase().split(' ')[0])
-      );
+      const raw = sParam.toLowerCase().trim();
+      const clean = raw.replace(/[-_]/g, ' ');
+      const found = defaultSalesmen.find(s => {
+        const sid = s.id.toLowerCase();
+        const sname = s.name.toLowerCase();
+        const slug = getSlug(s.name);
+        return (
+          sid === raw || sid === clean ||
+          slug === raw || slug === clean ||
+          sname === raw || sname === clean ||
+          sname.includes(clean) ||
+          clean.includes(sname.split(' ')[0])
+        );
+      });
       if (found) {
         currentSalesmanId = found.id;
-        isSalesmanLocked = true; // Auto-lock when personalized URL is opened
+        isSalesmanLocked = true;
       }
     }
 
