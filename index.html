@@ -584,8 +584,14 @@
   function getSalesmen() {
     try {
       const stored = localStorage.getItem('uo_salesmen');
-      if (stored) return JSON.parse(stored);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed) && parsed.length >= defaultSalesmen.length) {
+          return parsed;
+        }
+      }
     } catch(e) {}
+    try { localStorage.removeItem('uo_salesmen'); } catch(e) {}
     return defaultSalesmen;
   }
 
@@ -868,10 +874,13 @@
 
     if (sParam) {
       const cleanParam = sParam.toLowerCase().trim().replace(/[-_]/g, ' ');
-      const found = salesmen.find(s => 
+      const allRosters = salesmen.concat(defaultSalesmen);
+      const found = allRosters.find(s => 
         s.id.toLowerCase() === cleanParam ||
         s.name.toLowerCase() === cleanParam ||
         getSlug(s.name) === sParam.toLowerCase() ||
+        getSlug(s.name) === cleanParam ||
+        s.name.toLowerCase().replace(/\s+/g, '') === cleanParam.replace(/\s+/g, '') ||
         s.name.toLowerCase().includes(cleanParam) ||
         cleanParam.includes(s.name.toLowerCase().split(' ')[0])
       );
