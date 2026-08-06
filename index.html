@@ -482,6 +482,26 @@
   </div>
 </div>
 
+<!-- Admin Passcode Modal -->
+<div id="adminPinModal" class="modal-backdrop">
+  <div class="modal text-center" style="max-width: 380px;">
+    <div class="p-6">
+      <div class="w-14 h-14 rounded-full bg-[var(--accent-glow)] flex items-center justify-center mx-auto mb-4 text-[var(--accent)] text-xl"><i class="fa-solid fa-lock"></i></div>
+      <h3 class="font-display text-xl font-bold mb-1">Admin Passcode Required</h3>
+      <p class="text-xs text-[var(--muted)] mb-5">Please enter the management PIN to access reports and team settings.</p>
+      <form id="adminPinForm" class="space-y-4">
+        <div>
+          <input type="password" id="adminPinInput" class="input text-center text-lg font-mono tracking-widest" placeholder="••••" required autofocus>
+        </div>
+        <div class="flex gap-2">
+          <button type="button" id="closeAdminPinModal" class="flex-1 py-2.5 rounded-xl border border-[var(--border)] text-xs font-semibold">Cancel</button>
+          <button type="submit" class="flex-1 py-2.5 rounded-xl bg-[var(--accent)] text-white text-xs font-bold hover:bg-[var(--accent-2)] transition">Unlock</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
 <!-- Toast Container -->
 <div id="toast" class="toast glass rounded-xl px-5 py-4 flex items-center gap-3 max-w-sm">
   <div id="toastIcon" class="w-9 h-9 rounded-full bg-[var(--success)]/10 flex items-center justify-center text-[var(--success)] flex-shrink-0"><i class="fa-solid fa-check"></i></div>
@@ -713,8 +733,28 @@
       }
     });
 
-    // Admin & Links Listeners
-    document.getElementById('openAdminBtn').addEventListener('click', openAdminModal);
+    // Admin Passcode & Security Listeners
+    const ADMIN_PASSCODE = "UO2026";
+    document.getElementById('openAdminBtn').addEventListener('click', requestAdminAccess);
+    document.getElementById('closeAdminPinModal').addEventListener('click', () => document.getElementById('adminPinModal').classList.remove('open'));
+    document.getElementById('adminPinForm').addEventListener('submit', (e) => {
+      e.preventDefault();
+      const pin = document.getElementById('adminPinInput').value.trim();
+      if (pin === ADMIN_PASSCODE || pin === "2026") {
+        document.getElementById('adminPinModal').classList.remove('open');
+        document.getElementById('adminPinInput').value = '';
+        openAdminModal();
+        showToast('Admin Access Granted', 'Management portal unlocked.', 'success');
+      } else {
+        showToast('Access Denied', 'Incorrect Admin Passcode.', 'error');
+      }
+    });
+
+    function requestAdminAccess() {
+      document.getElementById('adminPinInput').value = '';
+      document.getElementById('adminPinModal').classList.add('open');
+    }
+
     document.getElementById('closeAdminModal').addEventListener('click', () => document.getElementById('adminModal').classList.remove('open'));
     document.getElementById('closeQrModal').addEventListener('click', () => document.getElementById('qrModal').classList.remove('open'));
     document.getElementById('copySalesmanLink').addEventListener('click', (e) => {
