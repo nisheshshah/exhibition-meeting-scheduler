@@ -657,6 +657,53 @@
   }
   function setUserBookings(data) { localStorage.setItem('uo_user_bookings', JSON.stringify(data)); }
 
+  function normalizeTime(t) {
+    if (!t) return '';
+    let str = String(t).trim();
+    if (str.includes('T')) {
+      try {
+        const d = new Date(str);
+        if (!isNaN(d.getTime())) {
+          let hours = d.getUTCHours();
+          let minutes = d.getUTCMinutes();
+          return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+        }
+      } catch(e) {}
+    }
+    const ampmMatch = str.match(/(\d{1,2}):(\d{2})\s*(AM|PM)/i);
+    if (ampmMatch) {
+      let h = parseInt(ampmMatch[1], 10);
+      const m = ampmMatch[2];
+      const p = ampmMatch[3].toUpperCase();
+      if (p === 'PM' && h < 12) h += 12;
+      if (p === 'AM' && h === 12) h = 0;
+      return `${h.toString().padStart(2, '0')}:${m}`;
+    }
+    const match = str.match(/(\d{1,2}):(\d{2})/);
+    if (match) {
+      const h = parseInt(match[1], 10);
+      const m = match[2];
+      return `${h.toString().padStart(2, '0')}:${m}`;
+    }
+    return str;
+  }
+
+  function normalizeDate(d) {
+    if (!d) return '';
+    let str = String(d).trim();
+    const dmy = str.match(/(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
+    if (dmy) {
+      const day = dmy[1].padStart(2, '0');
+      const month = dmy[2].padStart(2, '0');
+      const year = dmy[3];
+      return `${year}-${month}-${day}`;
+    }
+    if (str.includes('T')) {
+      return str.split('T')[0];
+    }
+    return str;
+  }
+
   // ==========================================
   // API SYNC (FETCH & WRITE)
   // ==========================================
@@ -669,8 +716,16 @@
         if (Array.isArray(data)) {
           rawBookingsList = data;
           data.forEach(b => {
-            if (b.salesmanId === currentSalesmanId) {
-              currentBookings[`${b.date}_${b.time}`] = b;
+            const nDate = normalizeDate(b.date);
+            const nTime = normalizeTime(b.time);
+            if (nDate && nTime) {
+              b.normDate = nDate;
+              b.normTime = nTime;
+              const sObj = salesmen.find(s => s.id === currentSalesmanId);
+              const sSlug = sObj ? getSlug(sObj.name) : '';
+              if (b.salesmanId === currentSalesmanId || b.salesmanId === sSlug || (b.salesmanName && sObj && b.salesmanName.toLowerCase().includes(sObj.name.toLowerCase()))) {
+                currentBookings[`${nDate}_${nTime}`] = b;
+              }
             }
           });
         }
@@ -1055,10 +1110,11 @@
       const groupDiv = document.createElement('div');
       groupDiv.className = 'fade-in-up';
       const slotsHTML = hourSlots.map(slot => {
-        const key = `${currentDate}_${slot.value}`;
+        const nTime = normalizeTime(slot.value);
+        const key = `${currentDate}_${nTime}`;
         const isBooked = !!currentBookings[key];
         if (isBooked) totalBooked++;
-        const isMine = !!userBookings[`${currentSalesmanId}_${currentDate}_${slot.value}`];
+        const isMine = !!userBookings[`${currentSalesmanId}_${currentDate}_${slot.value}`] || !!userBookings[`${currentSalesmanId}_${currentDate}_${nTime}`];
         let cls = 'slot-btn'; let extra = ''; let disabled = '';
         if (isBooked && !isMine) { cls += ' booked'; extra = '<i class="fa-solid fa-lock text-[9px] ml-1 opacity-60"></i>'; disabled = 'disabled'; } 
         else if (isMine) { cls += ' mine'; extra = '<i class="fa-solid fa-check text-[9px] ml-1"></i>'; }
