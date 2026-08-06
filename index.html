@@ -664,26 +664,42 @@
       try {
         const d = new Date(str);
         if (!isNaN(d.getTime())) {
-          let hours = d.getUTCHours();
-          let minutes = d.getUTCMinutes();
-          return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+          const istTime = new Date(d.getTime() + (5.5 * 3600 * 1000));
+          let hours = istTime.getUTCHours();
+          let minutes = istTime.getUTCMinutes();
+          let roundedMin = Math.round(minutes / 15) * 15;
+          if (roundedMin === 60) {
+            hours = (hours + 1) % 24;
+            roundedMin = 0;
+          }
+          return `${hours.toString().padStart(2, '0')}:${roundedMin.toString().padStart(2, '0')}`;
         }
       } catch(e) {}
     }
     const ampmMatch = str.match(/(\d{1,2}):(\d{2})\s*(AM|PM)/i);
     if (ampmMatch) {
       let h = parseInt(ampmMatch[1], 10);
-      const m = ampmMatch[2];
+      let m = parseInt(ampmMatch[2], 10);
       const p = ampmMatch[3].toUpperCase();
       if (p === 'PM' && h < 12) h += 12;
       if (p === 'AM' && h === 12) h = 0;
-      return `${h.toString().padStart(2, '0')}:${m}`;
+      let roundedMin = Math.round(m / 15) * 15;
+      if (roundedMin === 60) {
+        h = (h + 1) % 24;
+        roundedMin = 0;
+      }
+      return `${h.toString().padStart(2, '0')}:${roundedMin.toString().padStart(2, '0')}`;
     }
     const match = str.match(/(\d{1,2}):(\d{2})/);
     if (match) {
-      const h = parseInt(match[1], 10);
-      const m = match[2];
-      return `${h.toString().padStart(2, '0')}:${m}`;
+      let h = parseInt(match[1], 10);
+      let m = parseInt(match[2], 10);
+      let roundedMin = Math.round(m / 15) * 15;
+      if (roundedMin === 60) {
+        h = (h + 1) % 24;
+        roundedMin = 0;
+      }
+      return `${h.toString().padStart(2, '0')}:${roundedMin.toString().padStart(2, '0')}`;
     }
     return str;
   }
