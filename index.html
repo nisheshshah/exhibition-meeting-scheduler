@@ -126,8 +126,8 @@
         </div>
       </div>
       
-      <!-- Representative Selector (Can be locked for customer specific links) -->
-      <div class="flex flex-col gap-1.5 w-full md:w-72" id="selectorContainer">
+      <!-- Representative Selector (Hidden by default, only shown if no personalized salesman link is used) -->
+      <div class="flex flex-col gap-1.5 w-full md:w-72" id="selectorContainer" style="display: none !important;">
         <label class="text-[10px] uppercase tracking-[2px] text-[var(--muted)] flex justify-between">
           <span>Switch Representative</span>
           <a href="#" id="copySalesmanLink" class="text-[var(--accent)] hover:underline font-semibold text-[11px]"><i class="fa-regular fa-copy mr-1"></i>Copy Link</a>
@@ -963,9 +963,11 @@
     document.getElementById('salesmanSelect').value = currentSalesmanId;
 
     const selectorContainer = document.getElementById('selectorContainer');
-    if (isSalesmanLocked) {
+    const hasSalesmanParam = window.location.search.includes('s=') || window.location.search.includes('id=') || window.location.search.includes('name=') || window.location.search.includes('rep=');
+    
+    if (isSalesmanLocked || hasSalesmanParam) {
       document.getElementById('lockedBadge').classList.remove('hidden');
-      if (selectorContainer) selectorContainer.style.display = 'none';
+      if (selectorContainer) selectorContainer.style.setProperty('display', 'none', 'important');
     } else {
       document.getElementById('lockedBadge').classList.add('hidden');
       if (selectorContainer) selectorContainer.style.display = 'flex';
