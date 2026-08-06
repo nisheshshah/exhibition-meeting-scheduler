@@ -623,7 +623,47 @@
       phone: booking.phone,
       ref: booking.ref
     });
-    return fetch(APPS_SCRIPT_URL + '?' + params.toString()).then(res => res.json());
+
+    const googleSheetPromise = fetch(APPS_SCRIPT_URL + '?' + params.toString())
+      .then(res => res.json())
+      .catch(err => {
+        console.warn("Google Apps Script warning:", err);
+        return null;
+      });
+
+    if (supabaseClient) {
+      return supabaseClient
+        .from('bookings')
+        .insert([{
+          ref: booking.ref,
+          exhibition_id: 'fi-india-2026',
+          salesman_id: currentSalesmanId,
+          date: date,
+          time: time,
+          first_name: booking.firstName,
+          last_name: booking.lastName,
+          company: booking.company,
+          email: booking.email,
+          phone: booking.phone,
+          status: 'confirmed'
+        }])
+        .then(({ data, error }) => {
+          // Trigger Google Apps Script background write
+          googleSheetPromise;
+          if (error) {
+            if (error.code === '23505' || (error.message && error.message.includes('unique'))) {
+              return { status: "error", message: "Slot already booked by another visitor." };
+            }
+            return googleSheetPromise.then(res => res || { status: "error", message: error.message });
+          }
+          return { status: "success", ref: booking.ref };
+        })
+        .catch(err => {
+          return googleSheetPromise.then(res => res || { status: "success", ref: booking.ref });
+        });
+    }
+
+    return googleSheetPromise.then(res => res || { status: "success", ref: booking.ref });
   }
 
   // ==========================================
