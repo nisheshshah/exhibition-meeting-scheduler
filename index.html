@@ -790,14 +790,6 @@
       }
     });
 
-    const legacyAdminBtn = document.getElementById('openAdminBtn');
-    if (legacyAdminBtn) {
-      legacyAdminBtn.addEventListener('click', (e) => {
-        e.preventDefault();
-        requestAdminAccess();
-      });
-    }
-
     // Secret Triple-Click on Universal Oleoresins Logo to open Admin
     let logoClickCount = 0;
     let logoClickTimer = null;
