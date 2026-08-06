@@ -1,0 +1,1239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Universal Oleoresins — Exhibition Meeting Scheduler</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700;9..144,900&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root {
+    --bg: #fbf7f0; --bg-2: #ffffff; --bg-3: #f5ede0; --fg: #1a1410; --fg-2: #4a3f33;
+    --muted: #8a7960; --accent: #d54e1f; --accent-light: #e8852b; --accent-2: #b03a14;
+    --accent-glow: rgba(213, 78, 31, 0.15); --success: #2e8b2e;
+    --card: rgba(255, 255, 255, 0.9); --card-hover: #ffffff;
+    --border: rgba(26, 20, 16, 0.08); --border-hover: rgba(213, 78, 31, 0.4);
+    --shadow: 0 10px 40px -15px rgba(26, 20, 16, 0.1);
+  }
+  * { box-sizing: border-box; }
+  body { background: var(--bg); color: var(--fg); font-family: 'DM Sans', sans-serif; min-height: 100vh; overflow-x: hidden; margin: 0; -webkit-font-smoothing: antialiased; }
+  .font-display { font-family: 'Fraunces', serif; font-optical-sizing: auto; }
+  .bg-atmosphere { position: fixed; inset: 0; pointer-events: none; z-index: 0; background: radial-gradient(ellipse 80% 50% at 15% 10%, rgba(232, 133, 43, 0.12), transparent 60%), radial-gradient(ellipse 60% 40% at 90% 90%, rgba(213, 78, 31, 0.10), transparent 60%), radial-gradient(ellipse 50% 30% at 50% 50%, rgba(245, 158, 64, 0.04), transparent 70%); }
+  .glass { background: var(--bg-2); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid var(--border); box-shadow: var(--shadow); }
+  ::-webkit-scrollbar { width: 8px; height: 8px; } ::-webkit-scrollbar-track { background: var(--bg-3); } ::-webkit-scrollbar-thumb { background: var(--accent-light); border-radius: 4px; opacity: 0.6; }
+  .slot-btn { position: relative; background: var(--bg-2); border: 1px solid var(--border); color: var(--fg); padding: 14px 10px; border-radius: 10px; cursor: pointer; transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1); font-weight: 500; font-size: 13.5px; text-align: center; overflow: hidden; font-family: 'DM Sans', sans-serif; box-shadow: 0 2px 4px rgba(26, 20, 16, 0.02); }
+  .slot-btn:not(.booked):not(.mine):hover { background: var(--card-hover); border-color: var(--border-hover); transform: translateY(-2px); box-shadow: 0 8px 20px -8px var(--accent-glow); color: var(--accent); }
+  .slot-btn.booked { background: #f0eee9; border-color: rgba(26, 20, 16, 0.05); color: #b0a899; cursor: not-allowed; text-decoration: line-through; text-decoration-color: rgba(26, 20, 16, 0.2); text-decoration-thickness: 1.5px; }
+  .slot-btn.mine { background: rgba(46, 139, 46, 0.05); border-color: rgba(46, 139, 46, 0.3); color: var(--success); cursor: pointer; }
+  .date-tab { cursor: pointer; transition: all 0.3s; position: relative; background: var(--bg-2); border: 1px solid var(--border); }
+  .date-tab.active { background: linear-gradient(135deg, var(--accent), var(--accent-2)); border-color: var(--accent); box-shadow: 0 10px 30px -10px var(--accent-glow); }
+  .modal-backdrop { position: fixed; inset: 0; background: rgba(251, 247, 240, 0.8); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); z-index: 50; display: flex; align-items: center; justify-content: center; padding: 20px; opacity: 0; pointer-events: none; transition: opacity 0.3s; }
+  .modal-backdrop.open { opacity: 1; pointer-events: auto; }
+  .modal { background: var(--bg-2); border: 1px solid var(--border); border-radius: 20px; max-width: 540px; width: 100%; max-height: 92vh; overflow-y: auto; transform: scale(0.95) translateY(20px); transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1); box-shadow: 0 30px 80px -20px rgba(26, 20, 16, 0.15); }
+  .modal-backdrop.open .modal { transform: scale(1) translateY(0); }
+  .input { width: 100%; background: var(--bg); border: 1px solid var(--border); color: var(--fg); padding: 12px 16px; border-radius: 10px; font-size: 15px; font-family: 'DM Sans', sans-serif; transition: all 0.2s; }
+  .input:focus { outline: none; border-color: var(--accent); background: var(--bg-2); box-shadow: 0 0 0 3px var(--accent-glow); }
+  .input::placeholder { color: var(--muted); } .input.error { border-color: var(--accent-2); box-shadow: 0 0 0 3px rgba(213, 78, 31, 0.15); }
+  select.input { appearance: none; -webkit-appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23d54e1f' stroke-width='3'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 14px center; padding-right: 38px; }
+  .toast { position: fixed; bottom: 24px; right: 24px; z-index: 100; transform: translateX(140%); transition: transform 0.45s cubic-bezier(0.34, 1.56, 0.64, 1); }
+  .toast.show { transform: translateX(0); }
+  @keyframes pulse-dot { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.4; transform: scale(1.4); } }
+  .live-dot { animation: pulse-dot 2s ease-in-out infinite; }
+  @keyframes fade-in-up { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+  .fade-in-up { animation: fade-in-up 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) backwards; }
+  .ribbon { background: linear-gradient(90deg, var(--accent), var(--accent-2)); color: white; padding: 6px 14px; font-size: 11px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; border-radius: 4px; display: inline-block; }
+  .text-gradient { background: linear-gradient(135deg, var(--fg) 0%, var(--accent) 100%); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
+  .progress-bar { height: 4px; background: rgba(26, 20, 16, 0.05); border-radius: 2px; overflow: hidden; }
+  .progress-fill { height: 100%; background: linear-gradient(90deg, var(--accent-light), var(--accent)); border-radius: 2px; transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1); }
+  .logo-fallback { width: 44px; height: 44px; background: linear-gradient(135deg, var(--accent), var(--accent-2)); border-radius: 12px; display: flex; align-items: center; justify-content: center; color: white; font-family: 'Fraunces', serif; font-weight: 700; }
+  .tab-btn { padding: 10px 18px; border-radius: 10px; font-weight: 600; font-size: 14px; transition: all 0.2s; cursor: pointer; }
+  .tab-btn.active { background: var(--accent); color: white; }
+  .tab-btn:not(.active) { background: var(--bg-3); color: var(--fg-2); }
+  .tab-btn:not(.active):hover { background: rgba(213, 78, 31, 0.1); color: var(--accent); }
+</style>
+</head>
+<body>
+
+<div class="bg-atmosphere"></div>
+
+<div class="relative z-10">
+  <!-- Header Navbar -->
+  <header class="border-b border-[var(--border)] bg-white/50 backdrop-blur-md sticky top-0 z-20">
+    <div class="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <img src="https://z-cdn-media.chatglm.cn/files/1b58f2ab-dbb0-4742-9918-c1ecbbf55850.jpg?auth_key=1885934787-55a4e2842f664295bd824242d269e248-0-1c7d7a01f9ec72b9556cd07f7490e74c" alt="Universal Oleoresins Logo" class="h-12 w-12 rounded-xl object-contain bg-white p-1 shadow-sm border border-[var(--border)]" onerror="this.style.display='none'; document.getElementById('logoFallback').style.display='flex';">
+        <div id="logoFallback" class="logo-fallback" style="display: none;">UO</div>
+        <div>
+          <div class="font-display text-lg font-bold tracking-tight leading-none">UNIVERSAL OLEORESINS</div>
+          <div class="text-[10px] text-[var(--muted)] tracking-wider uppercase mt-1" id="exhibitionHeaderTag">Fi India 2026 · Mumbai</div>
+        </div>
+      </div>
+      
+      <div class="flex items-center gap-4 text-sm">
+        <div class="hidden md:flex items-center gap-2 text-[var(--fg-2)] bg-white/80 px-3 py-1.5 rounded-full border border-[var(--border)]">
+          <span class="w-2.5 h-2.5 rounded-full bg-[var(--accent)] live-dot"></span>
+          <span class="text-xs font-medium">Live Sync · <span id="liveClock" class="font-mono text-[var(--accent)]">--:--</span></span>
+        </div>
+        
+        <!-- Admin & Reports Access Button -->
+        <button id="openAdminBtn" class="flex items-center gap-2 px-3.5 py-1.5 rounded-xl border border-[var(--border)] bg-white hover:border-[var(--accent)] text-xs font-semibold transition text-[var(--fg-2)] hover:text-[var(--accent)] shadow-sm">
+          <i class="fa-solid fa-sliders"></i>
+          <span>Admin & Reports</span>
+        </button>
+      </div>
+    </div>
+  </header>
+  
+  <!-- Hero Section -->
+  <section class="max-w-6xl mx-auto px-6 pt-10 pb-8 relative">
+    <div class="grid lg:grid-cols-12 gap-8 items-end">
+      <div class="lg:col-span-8 fade-in-up">
+        <div class="ribbon mb-4" id="exhibitionRibbon">Meeting Scheduler · Fi India 2026</div>
+        <h1 class="font-display font-black text-4xl md:text-6xl leading-[1.0] tracking-tight text-gradient">Book a meeting<br>with our team.</h1>
+        <p class="mt-4 text-base md:text-lg text-[var(--fg-2)] max-w-xl leading-relaxed" id="exhibitionDescription">Reserve a 15-minute slot with our specialists at <strong>Stall 3D38, Hall 3</strong>. Discover our latest spice oleoresins, natural extracts, and tailored solutions crafted for your business.</p>
+      </div>
+      
+      <div class="lg:col-span-4 fade-in-up" style="animation-delay: 0.15s">
+        <div class="glass rounded-2xl p-5">
+          <div class="text-[10px] uppercase tracking-[2px] text-[var(--muted)] mb-3 flex items-center justify-between">
+            <span>Exhibition Info</span>
+            <span class="text-[var(--accent)] font-bold">Live Booth</span>
+          </div>
+          <div class="space-y-2.5 text-sm">
+            <div class="flex items-baseline justify-between"><span class="text-[var(--fg-2)]">Exhibition</span><span class="font-medium text-right" id="infoTitle">Fi India 2026</span></div>
+            <div class="flex items-baseline justify-between"><span class="text-[var(--fg-2)]">Venue</span><span class="font-medium text-right" id="infoVenue">(BEC), Goregaon, Mumbai</span></div>
+            <div class="flex items-baseline justify-between"><span class="text-[var(--fg-2)]">Location</span><span class="font-medium text-[var(--accent)]" id="infoLocation">Stall 3D38, Hall 3</span></div>
+            <div class="flex items-baseline justify-between"><span class="text-[var(--fg-2)]">Dates</span><span class="font-medium" id="infoDates">26 — 28 Aug 2026</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+  
+  <!-- Representative Banner -->
+  <section class="max-w-6xl mx-auto px-6 mb-8">
+    <div class="glass rounded-2xl p-6 flex flex-col md:flex-row items-start md:items-center gap-5">
+      <div class="w-16 h-16 rounded-2xl bg-gradient-to-br from-[var(--accent)] to-[var(--accent-2)] flex items-center justify-center text-2xl font-bold font-display text-white flex-shrink-0 shadow-lg" id="salesmanAvatar">
+        <span id="salesmanInitial">J</span>
+      </div>
+      <div class="flex-1">
+        <div class="flex items-center gap-2">
+          <span class="text-[10px] uppercase tracking-[2px] text-[var(--muted)]">Your Representative</span>
+          <span id="lockedBadge" class="hidden text-[9px] bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded-full"><i class="fa-solid fa-lock mr-1"></i>Personalized Link</span>
+        </div>
+        <h2 class="font-display text-2xl md:text-3xl font-bold leading-tight" id="salesmanName">Jai Shah</h2>
+        <div class="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1 text-sm text-[var(--fg-2)]">
+          <a id="salesmanEmail" href="mailto:jaishah@universaloleoresins.com" class="hover:text-[var(--accent)] transition flex items-center gap-1.5"><i class="fa-regular fa-envelope text-xs"></i><span id="salesmanEmailText">jaishah@universaloleoresins.com</span></a>
+          <span class="text-[var(--muted)]">·</span>
+          <span class="flex items-center gap-1.5"><i class="fa-solid fa-id-badge text-xs"></i><span id="salesmanId">S002</span></span>
+        </div>
+      </div>
+      
+      <!-- Representative Selector (Can be locked for customer specific links) -->
+      <div class="flex flex-col gap-1.5 w-full md:w-72" id="selectorContainer">
+        <label class="text-[10px] uppercase tracking-[2px] text-[var(--muted)] flex justify-between">
+          <span>Switch Representative</span>
+          <a href="#" id="copySalesmanLink" class="text-[var(--accent)] hover:underline font-semibold text-[11px]"><i class="fa-regular fa-copy mr-1"></i>Copy Link</a>
+        </label>
+        <select id="salesmanSelect" class="input cursor-pointer"></select>
+      </div>
+    </div>
+  </section>
+  
+  <!-- Main Slots Grid -->
+  <section class="max-w-6xl mx-auto px-6 pb-16">
+    <div class="grid lg:grid-cols-12 gap-8">
+      <!-- Date Picker Sidebar -->
+      <aside class="lg:col-span-4">
+        <div class="lg:sticky lg:top-24 space-y-5">
+          <div class="glass rounded-2xl p-6">
+            <div class="flex items-center justify-between mb-4"><h3 class="font-display text-xl font-bold">Select a date</h3><i class="fa-regular fa-calendar text-[var(--accent)]"></i></div>
+            <div class="space-y-2.5" id="dateTabs"></div>
+          </div>
+          
+          <div class="glass rounded-2xl p-6">
+            <div class="flex items-center justify-between mb-2">
+              <div class="text-[10px] uppercase tracking-[2px] text-[var(--muted)]">Day availability</div>
+              <span class="text-xs text-[var(--fg-2)] font-bold" id="availabilityPercent">--%</span>
+            </div>
+            <div class="flex items-baseline gap-2 mb-3">
+              <span class="font-display text-4xl font-bold text-gradient" id="availableCount">--</span>
+              <span class="text-sm text-[var(--fg-2)]">of <span id="totalCount">32</span> slots open</span>
+            </div>
+            <div class="progress-bar"><div class="progress-fill" id="progressFill" style="width: 0%"></div></div>
+          </div>
+        </div>
+      </aside>
+      
+      <!-- Time Slots Grid -->
+      <div class="lg:col-span-8">
+        <div class="glass rounded-2xl p-6 md:p-8">
+          <div class="flex items-start justify-between mb-7 gap-4">
+            <div>
+              <h3 class="font-display text-2xl md:text-3xl font-bold">Available time slots</h3>
+              <p class="text-sm text-[var(--fg-2)] mt-1.5" id="dateSubheading">Wednesday, 26 August 2026 · 9:00 AM – 5:00 PM IST</p>
+            </div>
+            <i class="fa-regular fa-clock text-2xl text-[var(--accent)] hidden md:block mt-1"></i>
+          </div>
+          
+          <div id="slotsContainer" class="space-y-5"></div>
+          <div id="emptyState" class="hidden text-center py-12">
+            <div class="w-16 h-16 rounded-full bg-[var(--accent-glow)] flex items-center justify-center mx-auto mb-4"><i class="fa-solid fa-calendar-xmark text-2xl text-[var(--accent)]"></i></div>
+            <h4 class="font-display text-xl font-bold mb-1">Fully booked</h4>
+            <p class="text-sm text-[var(--fg-2)]">All slots on this day are reserved. Try another date or representative.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- My Bookings Section -->
+  <section class="max-w-6xl mx-auto px-6 pb-20" id="myBookingSection" style="display: none;">
+    <div class="glass rounded-2xl p-6 md:p-8">
+      <div class="flex items-center gap-3 mb-5">
+        <div class="w-10 h-10 rounded-full bg-[var(--success)]/10 flex items-center justify-center text-[var(--success)]"><i class="fa-solid fa-check"></i></div>
+        <div>
+          <h3 class="font-display text-2xl font-bold">Your scheduled meetings</h3>
+          <p class="text-xs text-[var(--muted)] mt-0.5">Manage or cancel your active bookings</p>
+        </div>
+      </div>
+      <div id="myBookingContent" class="space-y-3"></div>
+    </div>
+  </section>
+</div>
+
+<!-- ========================================== -->
+<!-- MODALS -->
+<!-- ========================================== -->
+
+<!-- Booking Modal -->
+<div id="bookingModal" class="modal-backdrop">
+  <div class="modal">
+    <div class="p-7">
+      <div class="flex items-start justify-between mb-6">
+        <div>
+          <div class="text-[10px] uppercase tracking-[2px] text-[var(--accent)] mb-1.5">Confirm your booking</div>
+          <h3 class="font-display text-2xl font-bold leading-tight">Reserve this slot</h3>
+          <div class="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-[var(--fg-2)]">
+            <span class="flex items-center gap-1.5"><i class="fa-regular fa-calendar text-xs"></i><span id="modalDate">26 Aug 2026</span></span>
+            <span class="text-[var(--muted)]">·</span>
+            <span class="flex items-center gap-1.5"><i class="fa-regular fa-clock text-xs"></i><span id="modalTime">9:00 AM</span></span>
+            <span class="text-[var(--muted)]">·</span>
+            <span class="flex items-center gap-1.5"><i class="fa-regular fa-user text-xs"></i><span id="modalSalesman">Jai Shah</span></span>
+          </div>
+        </div>
+        <button id="closeModal" class="text-[var(--muted)] hover:text-[var(--fg)] transition w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100"><i class="fa-solid fa-xmark text-lg"></i></button>
+      </div>
+
+      <!-- Quick Book Toggle for Salesman -->
+      <div class="mb-4 p-3 bg-amber-50 rounded-xl border border-amber-200 flex items-center justify-between">
+        <div class="text-xs text-amber-900 font-medium flex items-center gap-2">
+          <i class="fa-solid fa-bolt text-amber-600"></i>
+          <span>On-Site Quick Book Mode (For Sales Team)</span>
+        </div>
+        <input type="checkbox" id="quickBookToggle" class="w-4 h-4 accent-[var(--accent)] cursor-pointer">
+      </div>
+
+      <form id="bookingForm" class="space-y-4" novalidate>
+        <div class="grid grid-cols-2 gap-4">
+          <div><label class="text-[10px] uppercase tracking-[2px] text-[var(--muted)] mb-1.5 block">First name <span class="text-[var(--accent-2)]">*</span></label><input type="text" name="firstName" class="input" placeholder="John" required><div class="text-xs text-[var(--accent-2)] mt-1 hidden" data-error="firstName">Please enter your first name.</div></div>
+          <div><label class="text-[10px] uppercase tracking-[2px] text-[var(--muted)] mb-1.5 block">Last name <span class="text-[var(--accent-2)]">*</span></label><input type="text" name="lastName" class="input" placeholder="Doe" required><div class="text-xs text-[var(--accent-2)] mt-1 hidden" data-error="lastName">Please enter your last name.</div></div>
+        </div>
+        <div><label class="text-[10px] uppercase tracking-[2px] text-[var(--muted)] mb-1.5 block">Company name <span class="text-[var(--accent-2)]">*</span></label><input type="text" name="company" class="input" placeholder="Acme Foods Pvt. Ltd." required><div class="text-xs text-[var(--accent-2)] mt-1 hidden" data-error="company">Please enter your company name.</div></div>
+        <div id="emailField"><label class="text-[10px] uppercase tracking-[2px] text-[var(--muted)] mb-1.5 block">Email <span class="text-[var(--accent-2)]">*</span></label><input type="email" name="email" class="input" placeholder="john@acme.com" required><div class="text-xs text-[var(--accent-2)] mt-1 hidden" data-error="email">Please enter a valid email address.</div></div>
+        <div id="phoneField"><label class="text-[10px] uppercase tracking-[2px] text-[var(--muted)] mb-1.5 block">Phone number <span class="text-[var(--accent-2)]">*</span></label><input type="tel" name="phone" class="input" placeholder="+91 98765 43210" required><div class="text-xs text-[var(--accent-2)] mt-1 hidden" data-error="phone">Please enter a valid phone number.</div></div>
+        <div class="pt-3 flex gap-3">
+          <button type="button" id="cancelBookingBtn" class="px-5 py-3 rounded-xl border border-[var(--border)] text-[var(--fg-2)] hover:bg-gray-50 transition font-medium flex-1">Cancel</button>
+          <button type="submit" id="submitBookingBtn" class="px-5 py-3 rounded-xl bg-gradient-to-r from-[var(--accent)] to-[var(--accent-2)] text-white font-semibold hover:shadow-lg transition flex-[2] flex items-center justify-center gap-2"><i class="fa-solid fa-calendar-check"></i>Confirm booking</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Success Modal -->
+<div id="successModal" class="modal-backdrop">
+  <div class="modal text-center">
+    <div class="p-8">
+      <div class="w-20 h-20 rounded-full bg-[var(--success)]/10 flex items-center justify-center mx-auto mb-5 text-[var(--success)]"><i class="fa-solid fa-circle-check text-4xl"></i></div>
+      <h3 class="font-display text-3xl font-bold mb-2">Meeting confirmed</h3>
+      <p class="text-[var(--fg-2)] mb-6 text-sm">Your meeting slot is successfully reserved.</p>
+      <div class="bg-[var(--bg)] rounded-xl p-5 text-left mb-6 border border-[var(--border)]">
+        <div class="grid grid-cols-2 gap-4 text-sm">
+          <div><div class="text-[10px] uppercase tracking-[2px] text-[var(--muted)] mb-1">Date</div><div class="font-medium" id="successDate">26 Aug 2026</div></div>
+          <div><div class="text-[10px] uppercase tracking-[2px] text-[var(--muted)] mb-1">Time</div><div class="font-medium" id="successTime">9:00 AM IST</div></div>
+          <div><div class="text-[10px] uppercase tracking-[2px] text-[var(--muted)] mb-1">With</div><div class="font-medium" id="successSalesman">Jai Shah</div></div>
+          <div><div class="text-[10px] uppercase tracking-[2px] text-[var(--muted)] mb-1">Reference</div><div class="font-medium font-mono text-[var(--accent)]" id="successRef">UO-XXXXXX</div></div>
+        </div>
+      </div>
+      <div class="flex gap-3">
+        <button id="downloadICS" class="flex-1 px-5 py-3 rounded-xl border border-[var(--border)] hover:bg-gray-50 transition font-medium text-sm flex items-center justify-center gap-2"><i class="fa-regular fa-calendar-plus"></i>Add to calendar</button>
+        <button id="closeSuccess" class="flex-1 px-5 py-3 rounded-xl bg-gradient-to-r from-[var(--accent)] to-[var(--accent-2)] text-white font-semibold transition text-sm">Done</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Cancel Confirmation Modal -->
+<div id="confirmModal" class="modal-backdrop">
+  <div class="modal" style="max-width: 440px;">
+    <div class="p-7 text-center">
+      <div class="w-16 h-16 rounded-full bg-[var(--accent-glow)] flex items-center justify-center mx-auto mb-4"><i class="fa-solid fa-triangle-exclamation text-2xl text-[var(--accent-2)]"></i></div>
+      <h3 class="font-display text-2xl font-bold mb-2">Cancel this meeting?</h3>
+      <p class="text-[var(--fg-2)] mb-6 text-sm">This will release the time slot and remove it from your bookings.</p>
+      <div class="flex gap-3">
+        <button id="confirmNo" class="flex-1 px-5 py-3 rounded-xl border border-[var(--border)] hover:bg-gray-50 transition font-medium text-sm">Keep meeting</button>
+        <button id="confirmYes" class="flex-1 px-5 py-3 rounded-xl bg-[var(--accent-2)] text-white font-semibold transition text-sm">Yes, cancel</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Edit / Add Salesman Modal -->
+<div id="editSalesmanModal" class="modal-backdrop">
+  <div class="modal" style="max-width: 460px;">
+    <div class="p-7">
+      <div class="flex justify-between items-center mb-5">
+        <h3 class="font-display font-bold text-xl" id="editSalesmanModalTitle">Edit Representative</h3>
+        <button id="closeEditSalesmanModal" class="text-[var(--muted)] hover:text-black w-8 h-8 rounded-full flex items-center justify-center"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <form id="editSalesmanForm" class="space-y-4">
+        <input type="hidden" id="editSalesmanOriginalId">
+        <div>
+          <label class="text-[10px] uppercase tracking-[2px] text-[var(--muted)] mb-1 block">Employee ID <span class="text-[var(--accent-2)]">*</span></label>
+          <input type="text" id="editSalesmanId" class="input font-mono text-xs" placeholder="e.g. S002" required>
+        </div>
+        <div>
+          <label class="text-[10px] uppercase tracking-[2px] text-[var(--muted)] mb-1 block">Full Name <span class="text-[var(--accent-2)]">*</span></label>
+          <input type="text" id="editSalesmanName" class="input text-xs" placeholder="e.g. Jai Shah" required>
+        </div>
+        <div>
+          <label class="text-[10px] uppercase tracking-[2px] text-[var(--muted)] mb-1 block">Email Address <span class="text-[var(--accent-2)]">*</span></label>
+          <input type="email" id="editSalesmanEmail" class="input text-xs" placeholder="e.g. jaishah@universaloleoresins.com" required>
+        </div>
+        <div class="pt-2 flex gap-3">
+          <button type="button" id="cancelEditSalesmanBtn" class="flex-1 py-2.5 rounded-xl border border-[var(--border)] text-xs font-semibold">Cancel</button>
+          <button type="submit" class="flex-1 py-2.5 rounded-xl bg-[var(--accent)] text-white text-xs font-bold hover:bg-[var(--accent-2)] transition">Save Changes</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- ========================================== -->
+<!-- ADMIN & REPORTING PORTAL MODAL -->
+<!-- ========================================== -->
+<div id="adminModal" class="modal-backdrop">
+  <div class="modal" style="max-width: 900px;">
+    <div class="p-6 md:p-8">
+      <!-- Admin Header -->
+      <div class="flex items-center justify-between mb-6 pb-4 border-b border-[var(--border)]">
+        <div>
+          <div class="ribbon text-[9px] mb-1">Management Console</div>
+          <h3 class="font-display text-2xl font-bold">Exhibition & Sales Portal</h3>
+        </div>
+        <button id="closeAdminModal" class="text-[var(--muted)] hover:text-[var(--fg)] w-8 h-8 rounded-full hover:bg-gray-100 flex items-center justify-center"><i class="fa-solid fa-xmark text-lg"></i></button>
+      </div>
+
+      <!-- Navigation Tabs -->
+      <div class="flex flex-wrap gap-2 mb-6 border-b border-[var(--border)] pb-3">
+        <button class="tab-btn active" data-tab="tabLinks"><i class="fa-solid fa-link mr-2"></i>Salesman Links & QR</button>
+        <button class="tab-btn" data-tab="tabTeamManager"><i class="fa-solid fa-users-gear mr-2"></i>Sales Team Roster</button>
+        <button class="tab-btn" data-tab="tabReports"><i class="fa-solid fa-chart-pie mr-2"></i>Reports & Analytics</button>
+        <button class="tab-btn" data-tab="tabExhibitions"><i class="fa-solid fa-calendar-plus mr-2"></i>Exhibition Manager</button>
+      </div>
+
+      <!-- Tab 1: Salesman Links & QR Code Generator -->
+      <div id="tabLinks" class="tab-content">
+        <div class="mb-4 flex flex-col md:flex-row md:items-center justify-between gap-3">
+          <p class="text-sm text-[var(--fg-2)]">Generate unique booking links and QR codes for each team member to share with customers.</p>
+          <button id="copyAllLinksBtn" class="px-3.5 py-2 rounded-xl bg-[var(--bg-3)] hover:bg-[var(--accent-glow)] text-xs font-semibold text-[var(--accent)] flex items-center gap-1.5"><i class="fa-regular fa-copy"></i>Copy All Links</button>
+        </div>
+        
+        <div class="grid md:grid-cols-2 gap-4 max-h-[460px] overflow-y-auto pr-1" id="salesmanLinkList"></div>
+      </div>
+
+      <!-- Tab 2: Sales Team Roster & Editor -->
+      <div id="tabTeamManager" class="tab-content hidden">
+        <div class="mb-4 flex items-center justify-between">
+          <div>
+            <h4 class="font-display font-bold text-lg">Sales Representatives</h4>
+            <p class="text-xs text-[var(--muted)]">Add, edit names, or update Employee IDs for your exhibition sales team.</p>
+          </div>
+          <button id="addNewSalesmanBtn" class="px-4 py-2 rounded-xl bg-[var(--accent)] text-white text-xs font-bold hover:bg-[var(--accent-2)] transition flex items-center gap-1.5">
+            <i class="fa-solid fa-user-plus"></i>Add Representative
+          </button>
+        </div>
+        <div class="border border-[var(--border)] rounded-xl overflow-hidden max-h-[400px] overflow-y-auto">
+          <table class="w-full text-left text-xs">
+            <thead class="bg-[var(--bg-3)] sticky top-0 font-semibold text-[var(--fg-2)] border-b border-[var(--border)]">
+              <tr>
+                <th class="p-3">Employee ID</th>
+                <th class="p-3">Full Name</th>
+                <th class="p-3">Email Address</th>
+                <th class="p-3 text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="salesmanTableBody" class="divide-y divide-[var(--border)] bg-white"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Tab 3: Reports & Analytics -->
+      <div id="tabReports" class="tab-content hidden">
+        <!-- KPI Overview Cards -->
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+          <div class="p-4 rounded-xl bg-[var(--bg)] border border-[var(--border)]">
+            <div class="text-[10px] uppercase tracking-wider text-[var(--muted)]">Total Bookings</div>
+            <div class="text-2xl font-bold font-display mt-1 text-[var(--accent)]" id="kpiTotalBookings">0</div>
+          </div>
+          <div class="p-4 rounded-xl bg-[var(--bg)] border border-[var(--border)]">
+            <div class="text-[10px] uppercase tracking-wider text-[var(--muted)]">Capacity Used</div>
+            <div class="text-2xl font-bold font-display mt-1 text-emerald-600" id="kpiCapacity">0%</div>
+          </div>
+          <div class="p-4 rounded-xl bg-[var(--bg)] border border-[var(--border)]">
+            <div class="text-[10px] uppercase tracking-wider text-[var(--muted)]">Top Salesperson</div>
+            <div class="text-sm font-bold truncate mt-1 text-[var(--fg)]" id="kpiTopSalesman">--</div>
+          </div>
+          <div class="p-4 rounded-xl bg-[var(--bg)] border border-[var(--border)]">
+            <div class="text-[10px] uppercase tracking-wider text-[var(--muted)]">Google Sheet Sync</div>
+            <div class="text-xs font-semibold mt-1 text-emerald-700 flex items-center gap-1.5"><i class="fa-solid fa-circle-check text-emerald-500"></i>Active</div>
+          </div>
+        </div>
+
+        <!-- Filter Controls & Export Toolbar -->
+        <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
+          <div class="flex flex-wrap items-center gap-2">
+            <select id="reportFilterSalesman" class="input py-1.5 px-3 text-xs w-40">
+              <option value="">All Representatives</option>
+            </select>
+            <input type="text" id="reportSearch" placeholder="Search company / name..." class="input py-1.5 px-3 text-xs w-48">
+          </div>
+          <div class="flex items-center gap-2">
+            <button id="exportCsvBtn" class="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold flex items-center gap-1.5 shadow-sm"><i class="fa-solid fa-file-excel"></i>Export CSV</button>
+            <button id="printReportBtn" class="px-3 py-1.5 rounded-xl border border-[var(--border)] hover:bg-gray-100 text-xs font-semibold flex items-center gap-1.5"><i class="fa-solid fa-print"></i>Print Report</button>
+          </div>
+        </div>
+
+        <!-- Report Table -->
+        <div class="border border-[var(--border)] rounded-xl overflow-hidden max-h-[350px] overflow-y-auto">
+          <table class="w-full text-left text-xs">
+            <thead class="bg-[var(--bg-3)] sticky top-0 font-semibold text-[var(--fg-2)] border-b border-[var(--border)]">
+              <tr>
+                <th class="p-3">Ref</th>
+                <th class="p-3">Date & Time</th>
+                <th class="p-3">Salesman</th>
+                <th class="p-3">Customer</th>
+                <th class="p-3">Company</th>
+                <th class="p-3">Contact</th>
+                <th class="p-3">Status</th>
+              </tr>
+            </thead>
+            <tbody id="reportTableBody" class="divide-y divide-[var(--border)] bg-white">
+              <tr><td colspan="7" class="p-6 text-center text-[var(--muted)]">Loading meeting records...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Tab 4: Exhibition Setup Manager -->
+      <div id="tabExhibitions" class="tab-content hidden">
+        <form id="exhibitionForm" class="space-y-4">
+          <div class="grid grid-cols-2 gap-4">
+            <div><label class="text-[10px] uppercase tracking-[2px] text-[var(--muted)] mb-1 block">Exhibition Title</label><input type="text" name="exTitle" class="input text-xs" value="Fi India 2026" required></div>
+            <div><label class="text-[10px] uppercase tracking-[2px] text-[var(--muted)] mb-1 block">Venue</label><input type="text" name="exVenue" class="input text-xs" value="(BEC), Goregaon, Mumbai" required></div>
+          </div>
+          <div class="grid grid-cols-3 gap-4">
+            <div><label class="text-[10px] uppercase tracking-[2px] text-[var(--muted)] mb-1 block">Stall / Location</label><input type="text" name="exLocation" class="input text-xs" value="Stall 3D38, Hall 3" required></div>
+            <div><label class="text-[10px] uppercase tracking-[2px] text-[var(--muted)] mb-1 block">Start Date</label><input type="date" name="exStartDate" class="input text-xs" value="2026-08-26" required></div>
+            <div><label class="text-[10px] uppercase tracking-[2px] text-[var(--muted)] mb-1 block">End Date</label><input type="date" name="exEndDate" class="input text-xs" value="2026-08-28" required></div>
+          </div>
+
+          <div>
+            <label class="text-[10px] uppercase tracking-[2px] text-[var(--muted)] mb-2 block">Attending Sales Team</label>
+            <div class="grid grid-cols-2 md:grid-cols-3 gap-2 bg-[var(--bg)] p-3 rounded-xl border border-[var(--border)] max-h-40 overflow-y-auto" id="teamChecklist"></div>
+          </div>
+
+          <div class="pt-2 flex justify-end">
+            <button type="submit" class="px-5 py-2.5 rounded-xl bg-[var(--accent)] text-white text-xs font-bold hover:bg-[var(--accent-2)] transition">Save Exhibition Settings</button>
+          </div>
+        </form>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- QR Code Preview Modal -->
+<div id="qrModal" class="modal-backdrop">
+  <div class="modal text-center" style="max-width: 400px;">
+    <div class="p-6">
+      <div class="flex justify-between items-center mb-4">
+        <h4 class="font-display font-bold text-lg" id="qrSalesmanName">Salesman QR Code</h4>
+        <button id="closeQrModal" class="text-[var(--muted)] hover:text-black"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div id="qrcode" class="flex justify-center p-4 bg-white rounded-xl border border-[var(--border)] mb-4"></div>
+      <p class="text-xs text-[var(--muted)] mb-4">Scan this QR code to open direct meeting booking link.</p>
+      <button id="copyQrLink" class="w-full py-2.5 rounded-xl bg-[var(--accent)] text-white font-semibold text-xs"><i class="fa-regular fa-copy mr-1.5"></i>Copy Direct Link</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast Container -->
+<div id="toast" class="toast glass rounded-xl px-5 py-4 flex items-center gap-3 max-w-sm">
+  <div id="toastIcon" class="w-9 h-9 rounded-full bg-[var(--success)]/10 flex items-center justify-center text-[var(--success)] flex-shrink-0"><i class="fa-solid fa-check"></i></div>
+  <div class="min-w-0"><div id="toastTitle" class="font-semibold text-sm">Notification</div><div id="toastMessage" class="text-xs text-[var(--fg-2)] truncate">Action completed.</div></div>
+</div>
+
+<!-- MAIN SCRIPT LOGIC -->
+<script>
+  // ==========================================
+  // CONFIGURATION & DEFAULTS
+  // ==========================================
+  const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxj-V__MmzPs-if0IfcSgs6Q3PTY3idwQeQh_bVIJT6wy79E4al1pbVg5gHpDWQp6xj/exec";
+  
+  const SUPABASE_URL = "https://mjjzrpckbufrgwglapgz.supabase.co"; // Supabase Base URL
+  const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1qanpycGNrYnVmcmd3Z2xhcGd6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU5OTE0NjQsImV4cCI6MjEwMTU2NzQ2NH0.LdvnvKQHm0k7Ve2J2jgJjg3ht0QRJou_eZKuXslo7jI";
+
+  // Supabase Client Initialization
+  let supabaseClient = null;
+  if (typeof supabase !== 'undefined' && SUPABASE_URL && !SUPABASE_URL.includes("your-project-id")) {
+    try {
+      const cleanUrl = SUPABASE_URL.replace(/\/rest\/v1\/?$/, '');
+      supabaseClient = supabase.createClient(cleanUrl, SUPABASE_ANON_KEY);
+      window.supabaseClient = supabaseClient;
+    } catch(e) { console.error("Supabase init error:", e); }
+  }
+
+  const defaultSalesmen = [
+    { id: 'S002', name: 'Jai Shah',         email: 'jaishah@universaloleoresins.com' },
+    { id: 'S003', name: 'Nishesh Shah',     email: 'nisheshshah@universaloleoresins.com' },
+    { id: 'S005', name: 'Paul Thampy',      email: 'intsales@universaloleoresins.com' },
+    { id: 'S006', name: 'Bikash Kar',       email: 'domsaleseast@universaloleoresins.com' },
+    { id: 'S007', name: 'Harshita Shah',    email: 'harshitashah@universaloleoresins.com' },
+    { id: 'S009', name: 'Payal',            email: 'domsales@universaloleoresins.com' },
+    { id: 'S010', name: 'Machindranath',    email: 'domsalesmh@universaloleoresins.com' },
+    { id: 'S011', name: 'Shishir Shah',     email: 'shishirshah@xtractiva.com' },
+    { id: 'S013', name: 'Saurabh',          email: 'domsalesgj@universaloleoresins.com' },
+    { id: 'S014', name: 'Kiruthi Kumar',    email: 'domsalessouth@universaloleoresins.com' },
+    { id: 'S015', name: 'Shubham',          email: 'horecawest@universaloleoresins.com' },
+    { id: 'S020', name: 'Jigesh Shah',      email: 'jigeshshah@universaloleoresins.com' }
+  ];
+
+  function getSalesmen() {
+    try {
+      const stored = localStorage.getItem('uo_salesmen');
+      if (stored) return JSON.parse(stored);
+    } catch(e) {}
+    return defaultSalesmen;
+  }
+
+  let salesmen = getSalesmen();
+
+  function saveSalesmenList(newList) {
+    salesmen = newList;
+    localStorage.setItem('uo_salesmen', JSON.stringify(salesmen));
+    populateSalesmanSelect();
+    renderSalesman();
+    renderSalesmenLinks();
+    renderTeamManager();
+    renderTeamChecklist();
+
+    // Sync with Supabase Database if connected
+    if (supabaseClient) {
+      supabaseClient.from('salesmen').upsert(newList).then(({ error }) => {
+        if (error) console.error("Supabase salesmen sync error:", error);
+      });
+    }
+  }
+
+  let dates = [
+    { value: '2026-08-26', day: '26', month: 'Aug', monthFull: 'August', weekday: 'Wednesday' },
+    { value: '2026-08-27', day: '27', month: 'Aug', monthFull: 'August', weekday: 'Thursday' },
+    { value: '2026-08-28', day: '28', month: 'Aug', monthFull: 'August', weekday: 'Friday' }
+  ];
+
+  let currentSalesmanId = 'S002';
+  let currentDate = '2026-08-26';
+  let isSalesmanLocked = false;
+  let selectedSlot = null;
+  let pendingCancel = null;
+  let currentBookings = {};
+  let rawBookingsList = [];
+
+  function generateTimeSlots() {
+    const slots = [];
+    for (let h = 9; h <= 16; h++) {
+      for (let m = 0; m < 60; m += 15) {
+        const hour12 = h === 0 ? 12 : (h > 12 ? h - 12 : h);
+        const ampm = h >= 12 ? 'PM' : 'AM';
+        const label = `${hour12}:${m.toString().padStart(2, '0')} ${ampm}`;
+        const value = `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
+        slots.push({ value, label, hour: h });
+      }
+    }
+    return slots;
+  }
+  const timeSlots = generateTimeSlots();
+
+  function getUserBookings() {
+    try { return JSON.parse(localStorage.getItem('uo_user_bookings') || '{}'); }
+    catch (e) { return {}; }
+  }
+  function setUserBookings(data) { localStorage.setItem('uo_user_bookings', JSON.stringify(data)); }
+
+  // ==========================================
+  // API SYNC (FETCH & WRITE)
+  // ==========================================
+  function fetchBookings() {
+    if (!APPS_SCRIPT_URL) return;
+    fetch(APPS_SCRIPT_URL + '?t=' + new Date().getTime())
+      .then(res => res.json())
+      .then(data => {
+        currentBookings = {};
+        if (Array.isArray(data)) {
+          rawBookingsList = data;
+          data.forEach(b => {
+            if (b.salesmanId === currentSalesmanId) {
+              currentBookings[`${b.date}_${b.time}`] = b;
+            }
+          });
+        }
+        renderSlots();
+        renderMyBookings();
+        renderReportsTable();
+      })
+      .catch(err => console.error("Fetch error:", err));
+  }
+
+  function saveBookingToCloud(date, time, booking) {
+    const params = new URLSearchParams({
+      action: 'book',
+      salesmanId: currentSalesmanId,
+      salesmanName: salesmen.find(s => s.id === currentSalesmanId)?.name || currentSalesmanId,
+      date: date,
+      time: time,
+      firstName: booking.firstName,
+      lastName: booking.lastName,
+      company: booking.company,
+      email: booking.email,
+      phone: booking.phone,
+      ref: booking.ref
+    });
+    return fetch(APPS_SCRIPT_URL + '?' + params.toString()).then(res => res.json());
+  }
+
+  // ==========================================
+  // APP INITIALIZATION
+  // ==========================================
+  function initApp() {
+    initFromURL();
+    populateSalesmanSelect();
+    renderSalesman();
+    renderDateTabs();
+    updateDateSubheading();
+    fetchBookings();
+    setInterval(fetchBookings, 12000);
+
+    // Subscribe to Supabase Realtime if active
+    if (supabaseClient) {
+      try {
+        supabaseClient
+          .channel('public:bookings')
+          .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'bookings' }, () => fetchBookings())
+          .subscribe();
+      } catch(e) {}
+    }
+
+    // Event Listeners
+    document.getElementById('bookingForm').addEventListener('submit', handleFormSubmit);
+    document.getElementById('closeModal').addEventListener('click', closeBookingModal);
+    document.getElementById('cancelBookingBtn').addEventListener('click', closeBookingModal);
+    document.getElementById('closeSuccess').addEventListener('click', () => {
+      document.getElementById('successModal').classList.remove('open');
+      showToast('Meeting confirmed', 'Your slot is reserved.', 'success');
+    });
+    document.getElementById('downloadICS').addEventListener('click', () => {
+      const data = JSON.parse(document.getElementById('downloadICS').dataset.booking);
+      downloadICS(data.booking, data.date, data.time, data.salesman);
+    });
+    document.getElementById('confirmNo').addEventListener('click', closeConfirmModal);
+    document.getElementById('confirmYes').addEventListener('click', executeCancel);
+    
+    // Quick book toggle
+    document.getElementById('quickBookToggle').addEventListener('change', (e) => {
+      const isQuick = e.target.checked;
+      const form = document.getElementById('bookingForm');
+      if (isQuick) {
+        form.email.value = form.email.value || 'walkin@customer.com';
+        form.phone.value = form.phone.value || '+91 90000 00000';
+      }
+    });
+
+    // Admin & Links Listeners
+    document.getElementById('openAdminBtn').addEventListener('click', openAdminModal);
+    document.getElementById('closeAdminModal').addEventListener('click', () => document.getElementById('adminModal').classList.remove('open'));
+    document.getElementById('closeQrModal').addEventListener('click', () => document.getElementById('qrModal').classList.remove('open'));
+    document.getElementById('copySalesmanLink').addEventListener('click', (e) => {
+      e.preventDefault();
+      const link = `${window.location.origin}${window.location.pathname}?s=${currentSalesmanId}&lock=1`;
+      navigator.clipboard.writeText(link);
+      showToast('Link copied!', `Direct booking link for ${currentSalesmanId} copied to clipboard.`, 'info');
+    });
+
+    // Admin Tab Switcher
+    document.querySelectorAll('#adminModal .tab-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        document.querySelectorAll('#adminModal .tab-btn').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('#adminModal .tab-content').forEach(c => c.classList.add('hidden'));
+        e.currentTarget.classList.add('active');
+        document.getElementById(e.currentTarget.dataset.tab).classList.remove('hidden');
+      });
+    });
+
+    // Sales Team Roster & Edit Modal Listeners
+    document.getElementById('addNewSalesmanBtn').addEventListener('click', () => openEditSalesmanModal());
+    document.getElementById('closeEditSalesmanModal').addEventListener('click', closeEditSalesmanModal);
+    document.getElementById('cancelEditSalesmanBtn').addEventListener('click', closeEditSalesmanModal);
+    document.getElementById('editSalesmanForm').addEventListener('submit', handleEditSalesmanSubmit);
+
+    // Filters & Exports
+    document.getElementById('reportFilterSalesman').addEventListener('change', renderReportsTable);
+    document.getElementById('reportSearch').addEventListener('input', renderReportsTable);
+    document.getElementById('exportCsvBtn').addEventListener('click', exportToCSV);
+    document.getElementById('printReportBtn').addEventListener('click', () => window.print());
+    document.getElementById('copyAllLinksBtn').addEventListener('click', copyAllSalesmenLinks);
+
+    updateClock();
+    setInterval(updateClock, 1000);
+  }
+
+  function initFromURL() {
+    const url = new URL(window.location.href);
+    const sParam = url.searchParams.get('s') || url.searchParams.get('id');
+    const lockParam = url.searchParams.get('lock');
+
+    if (sParam) {
+      const found = salesmen.find(s => s.id.toLowerCase() === sParam.toLowerCase() || s.name.toLowerCase().includes(sParam.toLowerCase()));
+      if (found) {
+        currentSalesmanId = found.id;
+      }
+    }
+    if (lockParam === '1' || lockParam === 'true') {
+      isSalesmanLocked = true;
+    }
+  }
+
+  function renderSalesman() {
+    const s = salesmen.find(x => x.id === currentSalesmanId) || salesmen[0];
+    if (!s) return;
+    currentSalesmanId = s.id;
+    document.getElementById('salesmanName').textContent = s.name;
+    document.getElementById('salesmanEmail').href = `mailto:${s.email}`;
+    document.getElementById('salesmanEmailText').textContent = s.email;
+    document.getElementById('salesmanId').textContent = s.id;
+    document.getElementById('salesmanInitial').textContent = s.name.charAt(0).toUpperCase();
+    document.getElementById('salesmanSelect').value = currentSalesmanId;
+
+    if (isSalesmanLocked) {
+      document.getElementById('lockedBadge').classList.remove('hidden');
+      document.getElementById('salesmanSelect').disabled = true;
+    }
+  }
+
+  function populateSalesmanSelect() {
+    const sel = document.getElementById('salesmanSelect');
+    sel.innerHTML = salesmen.map(s => `<option value="${s.id}">${s.name} (${s.id})</option>`).join('');
+    sel.value = currentSalesmanId;
+    sel.onchange = (e) => {
+      currentSalesmanId = e.target.value;
+      renderSalesman();
+      fetchBookings();
+      const url = new URL(window.location.href);
+      url.searchParams.set('s', currentSalesmanId);
+      window.history.replaceState({}, '', url);
+    };
+
+    // Populate Report Filter Dropdown
+    const rSel = document.getElementById('reportFilterSalesman');
+    rSel.innerHTML = `<option value="">All Representatives</option>` + salesmen.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
+  }
+
+  function renderDateTabs() {
+    const container = document.getElementById('dateTabs');
+    container.innerHTML = '';
+    dates.forEach(d => {
+      const tab = document.createElement('div');
+      tab.className = `date-tab flex items-center gap-4 p-4 rounded-xl ${d.value === currentDate ? 'active' : ''}`;
+      tab.innerHTML = `<div class="text-center min-w-[44px]"><div class="text-3xl font-display font-bold leading-none ${d.value === currentDate ? 'text-white' : 'text-[var(--fg)]'}">${d.day}</div><div class="text-[10px] uppercase tracking-[2px] mt-1 ${d.value === currentDate ? 'text-white/80' : 'text-[var(--muted)]'}">${d.month}</div></div><div class="flex-1"><div class="font-medium text-sm ${d.value === currentDate ? 'text-white' : 'text-[var(--fg)]'}">${d.weekday}</div><div class="text-xs ${d.value === currentDate ? 'text-white/70' : 'text-[var(--muted)]'}">${d.monthFull} 2026</div></div>${d.value === currentDate ? '<i class="fa-solid fa-arrow-right text-white/80 text-sm"></i>' : ''}`;
+      tab.addEventListener('click', () => {
+        currentDate = d.value;
+        renderDateTabs();
+        renderSlots();
+        updateDateSubheading();
+      });
+      container.appendChild(tab);
+    });
+  }
+
+  function updateDateSubheading() {
+    const d = dates.find(x => x.value === currentDate);
+    if (d) {
+      document.getElementById('dateSubheading').textContent = `${d.weekday}, ${d.day} ${d.monthFull} 2026 · 9:00 AM – 5:00 PM IST`;
+    }
+  }
+
+  function renderSlots() {
+    const container = document.getElementById('slotsContainer');
+    const empty = document.getElementById('emptyState');
+    container.innerHTML = '';
+    const userBookings = getUserBookings();
+    let totalBooked = 0;
+
+    for (let h = 9; h <= 16; h++) {
+      const hourSlots = timeSlots.filter(s => s.hour === h);
+      const hour12 = h === 0 ? 12 : (h > 12 ? h - 12 : h);
+      const ampm = h >= 12 ? 'PM' : 'AM';
+      const groupDiv = document.createElement('div');
+      groupDiv.className = 'fade-in-up';
+      const slotsHTML = hourSlots.map(slot => {
+        const key = `${currentDate}_${slot.value}`;
+        const isBooked = !!currentBookings[key];
+        if (isBooked) totalBooked++;
+        const isMine = !!userBookings[`${currentSalesmanId}_${currentDate}_${slot.value}`];
+        let cls = 'slot-btn'; let extra = ''; let disabled = '';
+        if (isBooked && !isMine) { cls += ' booked'; extra = '<i class="fa-solid fa-lock text-[9px] ml-1 opacity-60"></i>'; disabled = 'disabled'; } 
+        else if (isMine) { cls += ' mine'; extra = '<i class="fa-solid fa-check text-[9px] ml-1"></i>'; }
+        return `<button class="${cls}" data-slot="${slot.value}" data-label="${slot.label}" ${disabled}>${slot.label}${extra}</button>`;
+      }).join('');
+      groupDiv.innerHTML = `<div class="flex items-center gap-3 mb-3"><span class="font-display text-sm font-semibold text-[var(--accent)]">${hour12}:00 ${ampm}</span><div class="flex-1 h-px bg-gradient-to-r from-[var(--border)] to-transparent"></div></div><div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5">${slotsHTML}</div>`;
+      container.appendChild(groupDiv);
+    }
+
+    document.querySelectorAll('.slot-btn:not(.booked)').forEach(btn => {
+      btn.addEventListener('click', () => {
+        openBookingModal(btn.dataset.slot, btn.dataset.label, btn.classList.contains('mine'));
+      });
+    });
+
+    const available = timeSlots.length - totalBooked;
+    const pct = Math.round((available / timeSlots.length) * 100);
+    document.getElementById('availableCount').textContent = available;
+    document.getElementById('totalCount').textContent = timeSlots.length;
+    document.getElementById('availabilityPercent').textContent = pct + '% open';
+    document.getElementById('progressFill').style.width = pct + '%';
+
+    if (available === 0) { container.style.display = 'none'; empty.classList.remove('hidden'); }
+    else { container.style.display = ''; empty.classList.add('hidden'); }
+  }
+
+  function renderMyBookings() {
+    const userBookings = getUserBookings();
+    const section = document.getElementById('myBookingSection');
+    const content = document.getElementById('myBookingContent');
+    const myBookings = Object.keys(userBookings).map(key => {
+      const [sid, date, time] = key.split('_');
+      return { sid, date, time, key, booking: currentBookings[`${date}_${time}`] };
+    }).filter(b => b.sid === currentSalesmanId && b.booking);
+
+    if (myBookings.length === 0) { section.style.display = 'none'; return; }
+    section.style.display = 'block';
+    content.innerHTML = myBookings.map(b => {
+      const salesman = salesmen.find(s => s.id === b.sid);
+      const dateObj = dates.find(d => d.value === b.date) || { weekday: b.date, day: '', monthFull: '' };
+      const slot = timeSlots.find(s => s.value === b.time) || { label: b.time };
+      return `<div class="flex flex-col md:flex-row md:items-center justify-between gap-4 p-4 rounded-xl bg-[var(--bg)] border border-[var(--border)]"><div class="flex items-center gap-4"><div class="w-12 h-12 rounded-xl bg-[var(--accent-glow)] flex items-center justify-center text-[var(--accent)] flex-shrink-0"><i class="fa-regular fa-calendar-check"></i></div><div><div class="font-medium">${b.booking.firstName} ${b.booking.lastName}</div><div class="text-sm text-[var(--fg-2)]">${dateObj.weekday}, ${dateObj.day} ${dateObj.monthFull} · ${slot.label} IST</div><div class="text-xs text-[var(--muted)] mt-0.5">With ${salesman ? salesman.name : b.sid} · ${b.booking.company}</div></div></div><div class="flex items-center gap-3 self-end md:self-auto"><span class="text-xs font-mono text-[var(--accent)] bg-[var(--accent-glow)] px-3 py-1.5 rounded-md">${b.booking.ref}</span><button class="text-sm text-[var(--accent-2)] hover:underline px-3 py-1.5" data-cancel-key="${b.key}">Cancel</button></div></div>`;
+    }).join('');
+
+    content.querySelectorAll('[data-cancel-key]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const [sid, date, time] = btn.dataset.cancelKey.split('_');
+        pendingCancel = { sid, date, time, key: btn.dataset.cancelKey };
+        document.getElementById('confirmModal').classList.add('open');
+      });
+    });
+  }
+
+  function openBookingModal(slotValue, slotLabel, isMine) {
+    selectedSlot = { value: slotValue, label: slotLabel };
+    const d = dates.find(x => x.value === currentDate);
+    const s = salesmen.find(x => x.id === currentSalesmanId);
+    document.getElementById('modalDate').textContent = `${d.day} ${d.month} 2026`;
+    document.getElementById('modalTime').textContent = slotLabel;
+    document.getElementById('modalSalesman').textContent = s ? s.name : currentSalesmanId;
+
+    if (isMine) {
+      const booking = currentBookings[`${currentDate}_${slotValue}`];
+      if (booking) {
+        const form = document.getElementById('bookingForm');
+        form.firstName.value = booking.firstName; form.lastName.value = booking.lastName;
+        form.company.value = booking.company; form.email.value = booking.email; form.phone.value = booking.phone;
+      }
+    } else { document.getElementById('bookingForm').reset(); }
+    clearErrors();
+    document.getElementById('bookingModal').classList.add('open');
+  }
+
+  function closeBookingModal() {
+    document.getElementById('bookingModal').classList.remove('open');
+    document.getElementById('bookingForm').reset();
+    clearErrors(); selectedSlot = null;
+  }
+
+  function clearErrors() {
+    document.querySelectorAll('[data-error]').forEach(el => el.classList.add('hidden'));
+    document.querySelectorAll('.input').forEach(el => el.classList.remove('error'));
+  }
+
+  function showError(field) {
+    document.querySelector(`[data-error="${field}"]`)?.classList.remove('hidden');
+    document.querySelector(`[name="${field}"]`)?.classList.add('error');
+  }
+
+  function handleFormSubmit(e) {
+    e.preventDefault();
+    const data = Object.fromEntries(new FormData(e.target).entries());
+    clearErrors(); let valid = true;
+    if (!data.firstName || data.firstName.trim().length < 2) { showError('firstName'); valid = false; }
+    if (!data.lastName || data.lastName.trim().length < 2) { showError('lastName'); valid = false; }
+    if (!data.company || data.company.trim().length < 2) { showError('company'); valid = false; }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.email)) { showError('email'); valid = false; }
+    if (!/^\+?\d{7,}$/.test(data.phone.replace(/[\s\-\(\)]/g, ''))) { showError('phone'); valid = false; }
+
+    if (!valid) { showToast('Check the form', 'Please fix the highlighted fields.', 'error'); return; }
+
+    const submitBtn = document.getElementById('submitBookingBtn');
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin mr-2"></i>Reserving...`;
+
+    const ref = 'UO-' + Math.random().toString(36).substring(2, 8).toUpperCase();
+    const booking = {
+      firstName: data.firstName.trim(), lastName: data.lastName.trim(), company: data.company.trim(),
+      email: data.email.trim(), phone: data.phone.trim(), ref, timestamp: Date.now()
+    };
+
+    saveBookingToCloud(currentDate, selectedSlot.value, booking).then(response => {
+      submitBtn.disabled = false;
+      submitBtn.innerHTML = `<i class="fa-solid fa-calendar-check mr-2"></i>Confirm booking`;
+      if (response.status === "success") {
+        const userBookings = getUserBookings();
+        userBookings[`${currentSalesmanId}_${currentDate}_${selectedSlot.value}`] = ref;
+        setUserBookings(userBookings);
+        const s = salesmen.find(x => x.id === currentSalesmanId);
+        closeBookingModal();
+        showSuccess(currentDate, selectedSlot.value, s, response.ref || ref, booking);
+        fetchBookings();
+      } else {
+        showToast('Slot taken', 'This slot was just booked by another visitor. Please select another.', 'error');
+        closeBookingModal();
+        fetchBookings();
+      }
+    }).catch(err => {
+      submitBtn.disabled = false;
+      submitBtn.innerHTML = `<i class="fa-solid fa-calendar-check mr-2"></i>Confirm booking`;
+      console.error("Save error:", err);
+      showToast('Database Error', 'Could not save to Google Sheet.', 'error');
+    });
+  }
+
+  function executeCancel() {
+    if (!pendingCancel) return;
+    const userBookings = getUserBookings();
+    delete userBookings[pendingCancel.key];
+    setUserBookings(userBookings);
+    closeConfirmModal();
+    showToast('Meeting cancelled', 'The slot has been released.', 'success');
+    renderMyBookings();
+    fetchBookings();
+  }
+
+  function showSuccess(date, time, salesman, ref, booking) {
+    const d = dates.find(x => x.value === date);
+    const slot = timeSlots.find(s => s.value === time);
+    document.getElementById('successDate').textContent = `${d.day} ${d.month} 2026`;
+    document.getElementById('successTime').textContent = `${slot.label} IST`;
+    document.getElementById('successSalesman').textContent = salesman ? salesman.name : currentSalesmanId;
+    document.getElementById('successRef').textContent = ref;
+    document.getElementById('downloadICS').dataset.booking = JSON.stringify({ booking, date, time, salesman });
+    document.getElementById('successModal').classList.add('open');
+  }
+
+  function closeConfirmModal() {
+    document.getElementById('confirmModal').classList.remove('open'); pendingCancel = null;
+  }
+
+  function downloadICS(booking, date, time, salesman) {
+    const [y, mo, da] = date.split('-').map(Number);
+    const [h, mi] = time.split(':').map(Number);
+    const start = new Date(y, mo - 1, da, h, mi, 0);
+    const end = new Date(start.getTime() + 15 * 60000);
+    const fmt = (d) => d.getFullYear().toString() + (d.getMonth() + 1).toString().padStart(2, '0') + d.getDate().toString().padStart(2, '0') + 'T' + d.getHours().toString().padStart(2, '0') + d.getMinutes().toString().padStart(2, '0') + d.getSeconds().toString().padStart(2, '0');
+    const ics = ['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//Universal Oleoresins//Booking//EN','CALSCALE:GREGORIAN','BEGIN:VEVENT',`UID:${booking.ref}@universaloleoresins.com`,`DTSTAMP:${fmt(new Date())}`,`DTSTART:${fmt(start)}`,`DTEND:${fmt(end)}`,`SUMMARY:Meeting with ${salesman ? salesman.name : currentSalesmanId} — Universal Oleoresins`,`DESCRIPTION:Reference: ${booking.ref}\\nName: ${booking.firstName} ${booking.lastName}\\nCompany: ${booking.company}\\nEmail: ${booking.email}\\nPhone: ${booking.phone}\\nSalesman: ${salesman ? salesman.name : currentSalesmanId} (${currentSalesmanId})`,'LOCATION:Fi India 2026 - BEC, Goregaon, Mumbai (Stall 3D38, Hall 3)','END:VEVENT','END:VCALENDAR'].join('\r\n');
+    const blob = new Blob([ics], { type: 'text/calendar;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = `universal-oleoresins-meeting-${booking.ref}.ics`;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
+  }
+
+  // ==========================================
+  // ADMIN & REPORTS MANAGEMENT
+  // ==========================================
+  function openAdminModal() {
+    renderSalesmenLinks();
+    renderTeamManager();
+    renderReportsTable();
+    renderTeamChecklist();
+    document.getElementById('adminModal').classList.add('open');
+  }
+
+  // Render Sales Team Roster & Edit Buttons
+  function renderTeamManager() {
+    const tbody = document.getElementById('salesmanTableBody');
+    if (!tbody) return;
+    tbody.innerHTML = salesmen.map(s => `
+      <tr class="hover:bg-amber-50/50">
+        <td class="p-3 font-mono font-bold text-[var(--accent)]">${s.id}</td>
+        <td class="p-3 font-semibold text-[var(--fg)]">${s.name}</td>
+        <td class="p-3 text-[var(--fg-2)]">${s.email}</td>
+        <td class="p-3 text-right space-x-1">
+          <button class="px-2.5 py-1 rounded-lg bg-[var(--bg-3)] hover:bg-[var(--accent-glow)] text-[var(--accent)] font-semibold text-xs transition" onclick="openEditSalesmanModal('${s.id}')">
+            <i class="fa-solid fa-pen-to-square mr-1"></i>Edit
+          </button>
+          <button class="px-2.5 py-1 rounded-lg text-red-600 hover:bg-red-50 font-semibold text-xs transition" onclick="deleteSalesman('${s.id}')">
+            <i class="fa-solid fa-trash mr-1"></i>Delete
+          </button>
+        </td>
+      </tr>
+    `).join('');
+  }
+
+  function openEditSalesmanModal(id = null) {
+    const title = document.getElementById('editSalesmanModalTitle');
+    const origId = document.getElementById('editSalesmanOriginalId');
+    const idInput = document.getElementById('editSalesmanId');
+    const nameInput = document.getElementById('editSalesmanName');
+    const emailInput = document.getElementById('editSalesmanEmail');
+
+    if (id) {
+      const s = salesmen.find(x => x.id === id);
+      if (s) {
+        title.textContent = `Edit ${s.name}`;
+        origId.value = s.id;
+        idInput.value = s.id;
+        nameInput.value = s.name;
+        emailInput.value = s.email;
+      }
+    } else {
+      title.textContent = "Add Sales Representative";
+      origId.value = "";
+      idInput.value = `S0${salesmen.length + 1}`.padStart(4, '0');
+      nameInput.value = "";
+      emailInput.value = "";
+    }
+    document.getElementById('editSalesmanModal').classList.add('open');
+  }
+
+  function closeEditSalesmanModal() {
+    document.getElementById('editSalesmanModal').classList.remove('open');
+    document.getElementById('editSalesmanForm').reset();
+  }
+
+  function handleEditSalesmanSubmit(e) {
+    e.preventDefault();
+    const origId = document.getElementById('editSalesmanOriginalId').value;
+    const newId = document.getElementById('editSalesmanId').value.trim().toUpperCase();
+    const newName = document.getElementById('editSalesmanName').value.trim();
+    const newEmail = document.getElementById('editSalesmanEmail').value.trim();
+
+    if (!newId || !newName || !newEmail) {
+      showToast('Validation Error', 'Please fill in all fields.', 'error');
+      return;
+    }
+
+    let updatedList = [...salesmen];
+    if (origId) {
+      // Editing existing
+      const index = updatedList.findIndex(x => x.id === origId);
+      if (index !== -1) {
+        updatedList[index] = { id: newId, name: newName, email: newEmail };
+      }
+    } else {
+      // Check duplicate ID
+      if (updatedList.some(x => x.id === newId)) {
+        showToast('Duplicate ID', `Employee ID ${newId} already exists.`, 'error');
+        return;
+      }
+      updatedList.push({ id: newId, name: newName, email: newEmail });
+    }
+
+    saveSalesmenList(updatedList);
+    closeEditSalesmanModal();
+    showToast('Team Updated', `Saved details for ${newName} (${newId}).`, 'success');
+  }
+
+  function deleteSalesman(id) {
+    if (salesmen.length <= 1) {
+      showToast('Action Denied', 'At least one representative must remain in the system.', 'error');
+      return;
+    }
+    const s = salesmen.find(x => x.id === id);
+    if (confirm(`Are you sure you want to remove ${s ? s.name : id} from the sales team?`)) {
+      const updatedList = salesmen.filter(x => x.id !== id);
+      saveSalesmenList(updatedList);
+      showToast('Removed', `Removed ${s ? s.name : id} from sales team.`, 'info');
+    }
+  }
+
+  function renderSalesmenLinks() {
+    const container = document.getElementById('salesmanLinkList');
+    if (!container) return;
+    container.innerHTML = salesmen.map(s => {
+      const link = `${window.location.origin}${window.location.pathname}?s=${s.id}&lock=1`;
+      return `
+        <div class="p-4 rounded-xl bg-[var(--bg)] border border-[var(--border)] flex flex-col justify-between gap-3">
+          <div>
+            <div class="flex items-center justify-between">
+              <div class="font-bold text-sm text-[var(--fg)]">${s.name}</div>
+              <span class="text-[10px] font-mono bg-amber-100 text-amber-800 px-2 py-0.5 rounded">${s.id}</span>
+            </div>
+            <div class="text-xs text-[var(--muted)] truncate mt-0.5">${s.email}</div>
+          </div>
+          <div class="flex items-center gap-2">
+            <input type="text" readonly value="${link}" class="input text-[11px] py-1 px-2.5 flex-1 bg-white font-mono">
+            <button class="px-2.5 py-1 rounded-lg bg-[var(--accent-glow)] text-[var(--accent)] text-xs font-semibold hover:bg-[var(--accent)] hover:text-white transition" onclick="copyLink('${link}')"><i class="fa-regular fa-copy"></i></button>
+            <button class="px-2.5 py-1 rounded-lg border border-[var(--border)] text-xs font-semibold hover:bg-gray-100 transition" onclick="openQrModal('${s.name}', '${link}')"><i class="fa-solid fa-qrcode"></i></button>
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  function copyLink(link) {
+    navigator.clipboard.writeText(link);
+    showToast('Copied!', 'Meeting link copied to clipboard.', 'info');
+  }
+
+  function copyAllSalesmenLinks() {
+    const text = salesmen.map(s => `${s.name} (${s.id}): ${window.location.origin}${window.location.pathname}?s=${s.id}&lock=1`).join('\n');
+    navigator.clipboard.writeText(text);
+    showToast('All Links Copied', 'Directory of all salesman meeting links copied to clipboard.', 'success');
+  }
+
+  function openQrModal(name, link) {
+    document.getElementById('qrSalesmanName').textContent = `${name} — Meeting QR`;
+    const qrContainer = document.getElementById('qrcode');
+    qrContainer.innerHTML = '';
+    new QRCode(qrContainer, { text: link, width: 180, height: 180 });
+    document.getElementById('copyQrLink').onclick = () => copyLink(link);
+    document.getElementById('qrModal').classList.add('open');
+  }
+
+  function renderReportsTable() {
+    const sFilter = document.getElementById('reportFilterSalesman').value;
+    const query = document.getElementById('reportSearch').value.toLowerCase().trim();
+    const tbody = document.getElementById('reportTableBody');
+
+    let filtered = rawBookingsList;
+    if (sFilter) filtered = filtered.filter(b => b.salesmanId === sFilter);
+    if (query) {
+      filtered = filtered.filter(b => 
+        (b.firstName + ' ' + b.lastName).toLowerCase().includes(query) ||
+        (b.company || '').toLowerCase().includes(query) ||
+        (b.email || '').toLowerCase().includes(query) ||
+        (b.ref || '').toLowerCase().includes(query)
+      );
+    }
+
+    // Update KPIs
+    document.getElementById('kpiTotalBookings').textContent = rawBookingsList.length;
+    const totalPossibleSlots = salesmen.length * dates.length * timeSlots.length;
+    const capPct = totalPossibleSlots ? Math.round((rawBookingsList.length / totalPossibleSlots) * 100) : 0;
+    document.getElementById('kpiCapacity').textContent = capPct + '%';
+
+    // Calculate Top Salesman
+    const counts = {};
+    rawBookingsList.forEach(b => counts[b.salesmanName || b.salesmanId] = (counts[b.salesmanName || b.salesmanId] || 0) + 1);
+    let topName = '--'; let maxCount = 0;
+    Object.entries(counts).forEach(([k, v]) => { if (v > maxCount) { maxCount = v; topName = k; } });
+    document.getElementById('kpiTopSalesman').textContent = topName !== '--' ? `${topName} (${maxCount})` : '--';
+
+    if (filtered.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="7" class="p-6 text-center text-[var(--muted)]">No meeting records found.</td></tr>`;
+      return;
+    }
+
+    tbody.innerHTML = filtered.map(b => `
+      <tr class="hover:bg-amber-50/50">
+        <td class="p-3 font-mono font-bold text-[var(--accent)]">${b.ref || 'UO-REF'}</td>
+        <td class="p-3 font-medium">${b.date} <span class="text-[var(--muted)]">${b.time}</span></td>
+        <td class="p-3 font-medium">${b.salesmanName || b.salesmanId}</td>
+        <td class="p-3 font-semibold">${b.firstName} ${b.lastName}</td>
+        <td class="p-3">${b.company}</td>
+        <td class="p-3 text-[11px] text-[var(--fg-2)]">${b.email}<br>${b.phone}</td>
+        <td class="p-3"><span class="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800">Confirmed</span></td>
+      </tr>
+    `).join('');
+  }
+
+  function exportToCSV() {
+    if (rawBookingsList.length === 0) {
+      showToast('No data', 'There are no bookings to export.', 'error');
+      return;
+    }
+    const headers = ["Reference", "Exhibition", "Salesman ID", "Salesman Name", "Date", "Time", "First Name", "Last Name", "Company", "Email", "Phone", "Status"];
+    const rows = rawBookingsList.map(b => [
+      b.ref, b.exhibitionId || 'fi-india-2026', b.salesmanId, b.salesmanName, b.date, b.time,
+      `"${b.firstName}"`, `"${b.lastName}"`, `"${b.company}"`, b.email, `'${b.phone}`, b.status || 'confirmed'
+    ]);
+
+    const csvContent = "data:text/csv;charset=utf-8," + [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `Universal_Oleoresins_Meetings_Report_${new Date().toISOString().slice(0,10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    showToast('Export successful', 'CSV report downloaded.', 'success');
+  }
+
+  function renderTeamChecklist() {
+    const container = document.getElementById('teamChecklist');
+    if (!container) return;
+    container.innerHTML = salesmen.map(s => `
+      <label class="flex items-center gap-2 p-1.5 rounded hover:bg-white text-xs cursor-pointer">
+        <input type="checkbox" value="${s.id}" checked class="accent-[var(--accent)]">
+        <span>${s.name} (${s.id})</span>
+      </label>
+    `).join('');
+  }
+
+  let toastTimer = null;
+  function showToast(title, message, type = 'success') {
+    const toast = document.getElementById('toast');
+    const icon = document.getElementById('toastIcon');
+    document.getElementById('toastTitle').textContent = title;
+    document.getElementById('toastMessage').textContent = message;
+    const colors = {
+      success: { bg: 'rgba(46, 139, 46, 0.1)', fg: '#2e8b2e', icon: 'fa-check' },
+      error: { bg: 'rgba(213, 78, 31, 0.1)', fg: '#d54e1f', icon: 'fa-xmark' },
+      info: { bg: 'rgba(232, 133, 43, 0.1)', fg: '#e8852b', icon: 'fa-info' }
+    };
+    const c = colors[type] || colors.success;
+    icon.style.background = c.bg; icon.style.color = c.fg; icon.innerHTML = `<i class="fa-solid ${c.icon}"></i>`;
+    toast.classList.add('show'); clearTimeout(toastTimer); toastTimer = setTimeout(() => toast.classList.remove('show'), 4000);
+  }
+
+  function updateClock() {
+    try { document.getElementById('liveClock').textContent = new Date().toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: false }); } 
+    catch (e) { const now = new Date(); document.getElementById('liveClock').textContent = now.getHours().toString().padStart(2, '0') + ':' + now.getMinutes().toString().padStart(2, '0'); }
+  }
+
+  // Start Application
+  initApp();
+</script>
+</body>
+</html>
