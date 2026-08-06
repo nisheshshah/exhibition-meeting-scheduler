@@ -771,18 +771,15 @@
 
     // Secret Admin Passcode & Security Listeners
     const ADMIN_PASSCODE = "UO2026";
-    let isAdminAuthenticated = sessionStorage.getItem('adminAuth') === 'true';
 
     document.getElementById('closeAdminPinModal').addEventListener('click', () => document.getElementById('adminPinModal').classList.remove('open'));
     document.getElementById('adminPinForm').addEventListener('submit', (e) => {
       e.preventDefault();
       const pin = document.getElementById('adminPinInput').value.trim();
       if (pin === ADMIN_PASSCODE || pin === "2026") {
-        isAdminAuthenticated = true;
-        sessionStorage.setItem('adminAuth', 'true');
         document.getElementById('adminPinModal').classList.remove('open');
         document.getElementById('adminPinInput').value = '';
-        openAdminModal();
+        openAdminModal(true);
         showToast('Admin Access Granted', 'Management portal unlocked.', 'success');
       } else {
         showToast('Access Denied', 'Incorrect Admin Passcode.', 'error');
@@ -790,10 +787,6 @@
     });
 
     function requestAdminAccess() {
-      if (isAdminAuthenticated) {
-        openAdminModal();
-        return;
-      }
       document.getElementById('adminPinInput').value = '';
       document.getElementById('adminPinModal').classList.add('open');
     }
@@ -1231,8 +1224,8 @@
   // ==========================================
   // ADMIN & REPORTS MANAGEMENT
   // ==========================================
-  function openAdminModal() {
-    if (!isAdminAuthenticated && sessionStorage.getItem('adminAuth') !== 'true') {
+  function openAdminModal(isVerified = false) {
+    if (!isVerified) {
       document.getElementById('adminModal').classList.remove('open');
       requestAdminAccess();
       return;
