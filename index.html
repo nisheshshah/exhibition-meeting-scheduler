@@ -587,10 +587,22 @@
   ];
 
   function getSalesmen() {
-    return defaultSalesmen;
+    try {
+      const stored = localStorage.getItem('uo_salesmen');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          const mergedMap = new Map();
+          defaultSalesmen.forEach(s => mergedMap.set(s.id, s));
+          parsed.forEach(s => mergedMap.set(s.id, s));
+          return Array.from(mergedMap.values());
+        }
+      }
+    } catch(e) {}
+    return [...defaultSalesmen];
   }
 
-  let salesmen = [...defaultSalesmen];
+  let salesmen = getSalesmen();
 
   function saveSalesmenList(newList) {
     salesmen = newList;
@@ -854,7 +866,7 @@
   }
 
   function initFromURL() {
-    salesmen = [...defaultSalesmen];
+    salesmen = getSalesmen();
     const urlParams = new URLSearchParams(window.location.search);
     const sParam = urlParams.get('s') || urlParams.get('id') || urlParams.get('name') || urlParams.get('rep');
     const adminParam = urlParams.get('admin') || urlParams.get('mode');
@@ -863,7 +875,7 @@
     if (sParam) {
       const raw = sParam.toLowerCase().trim();
       const clean = raw.replace(/[-_]/g, ' ');
-      const found = defaultSalesmen.find(s => {
+      const found = salesmen.find(s => {
         const sid = s.id.toLowerCase();
         const sname = s.name.toLowerCase();
         const slug = getSlug(s.name);
