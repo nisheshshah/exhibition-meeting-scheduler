@@ -63,7 +63,7 @@
   <!-- Header Navbar -->
   <header class="border-b border-[var(--border)] bg-white/50 backdrop-blur-md sticky top-0 z-20">
     <div class="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
-      <div class="flex items-center gap-3">
+      <div class="flex items-center gap-3 cursor-pointer" id="headerBrand" title="Universal Oleoresins">
         <img src="https://z-cdn-media.chatglm.cn/files/1b58f2ab-dbb0-4742-9918-c1ecbbf55850.jpg?auth_key=1885934787-55a4e2842f664295bd824242d269e248-0-1c7d7a01f9ec72b9556cd07f7490e74c" alt="Universal Oleoresins Logo" class="h-12 w-12 rounded-xl object-contain bg-white p-1 shadow-sm border border-[var(--border)]" onerror="this.style.display='none'; document.getElementById('logoFallback').style.display='flex';">
         <div id="logoFallback" class="logo-fallback" style="display: none;">UO</div>
         <div>
@@ -77,12 +77,6 @@
           <span class="w-2.5 h-2.5 rounded-full bg-[var(--accent)] live-dot"></span>
           <span class="text-xs font-medium">Live Sync · <span id="liveClock" class="font-mono text-[var(--accent)]">--:--</span></span>
         </div>
-        
-        <!-- Admin & Reports Access Button -->
-        <button id="openAdminBtn" class="flex items-center gap-2 px-3.5 py-1.5 rounded-xl border border-[var(--border)] bg-white hover:border-[var(--accent)] text-xs font-semibold transition text-[var(--fg-2)] hover:text-[var(--accent)] shadow-sm">
-          <i class="fa-solid fa-sliders"></i>
-          <span>Admin & Reports</span>
-        </button>
       </div>
     </div>
   </header>
@@ -733,9 +727,8 @@
       }
     });
 
-    // Admin Passcode & Security Listeners
+    // Secret Admin Passcode & Security Listeners
     const ADMIN_PASSCODE = "UO2026";
-    document.getElementById('openAdminBtn').addEventListener('click', requestAdminAccess);
     document.getElementById('closeAdminPinModal').addEventListener('click', () => document.getElementById('adminPinModal').classList.remove('open'));
     document.getElementById('adminPinForm').addEventListener('submit', (e) => {
       e.preventDefault();
@@ -753,6 +746,23 @@
     function requestAdminAccess() {
       document.getElementById('adminPinInput').value = '';
       document.getElementById('adminPinModal').classList.add('open');
+    }
+
+    // Secret Triple-Click on Universal Oleoresins Logo to open Admin
+    let logoClickCount = 0;
+    let logoClickTimer = null;
+    const logoEl = document.getElementById('headerBrand');
+    if (logoEl) {
+      logoEl.addEventListener('click', () => {
+        logoClickCount++;
+        clearTimeout(logoClickTimer);
+        if (logoClickCount >= 3) {
+          logoClickCount = 0;
+          requestAdminAccess();
+        } else {
+          logoClickTimer = setTimeout(() => { logoClickCount = 0; }, 800);
+        }
+      });
     }
 
     document.getElementById('closeAdminModal').addEventListener('click', () => document.getElementById('adminModal').classList.remove('open'));
@@ -791,19 +801,32 @@
     setInterval(updateClock, 1000);
   }
 
+  function getSlug(name) {
+    return name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+  }
+
   function initFromURL() {
     const url = new URL(window.location.href);
-    const sParam = url.searchParams.get('s') || url.searchParams.get('id');
-    const lockParam = url.searchParams.get('lock');
+    const sParam = url.searchParams.get('s') || url.searchParams.get('id') || url.searchParams.get('name') || url.searchParams.get('rep');
+    const adminParam = url.searchParams.get('admin') || url.searchParams.get('mode');
 
     if (sParam) {
-      const found = salesmen.find(s => s.id.toLowerCase() === sParam.toLowerCase() || s.name.toLowerCase().includes(sParam.toLowerCase()));
+      const cleanParam = sParam.toLowerCase().trim().replace(/[-_]/g, ' ');
+      const found = salesmen.find(s => 
+        s.id.toLowerCase() === cleanParam ||
+        s.name.toLowerCase() === cleanParam ||
+        getSlug(s.name) === sParam.toLowerCase() ||
+        s.name.toLowerCase().includes(cleanParam) ||
+        cleanParam.includes(s.name.toLowerCase().split(' ')[0])
+      );
       if (found) {
         currentSalesmanId = found.id;
+        isSalesmanLocked = true; // Auto-lock when personalized URL is opened
       }
     }
-    if (lockParam === '1' || lockParam === 'true') {
-      isSalesmanLocked = true;
+
+    if (adminParam === '1' || adminParam === 'true' || adminParam === 'secret') {
+      setTimeout(() => requestAdminAccess(), 400);
     }
   }
 
@@ -1171,7 +1194,8 @@
     const container = document.getElementById('salesmanLinkList');
     if (!container) return;
     container.innerHTML = salesmen.map(s => {
-      const link = `${window.location.origin}${window.location.pathname}?s=${s.id}&lock=1`;
+      const slug = getSlug(s.name);
+      const link = `${window.location.origin}${window.location.pathname}?s=${slug}`;
       return `
         <div class="p-4 rounded-xl bg-[var(--bg)] border border-[var(--border)] flex flex-col justify-between gap-3">
           <div>
@@ -1197,7 +1221,7 @@
   }
 
   function copyAllSalesmenLinks() {
-    const text = salesmen.map(s => `${s.name} (${s.id}): ${window.location.origin}${window.location.pathname}?s=${s.id}&lock=1`).join('\n');
+    const text = salesmen.map(s => `${s.name} (${s.id}): ${window.location.origin}${window.location.pathname}?s=${getSlug(s.name)}`).join('\n');
     navigator.clipboard.writeText(text);
     showToast('All Links Copied', 'Directory of all salesman meeting links copied to clipboard.', 'success');
   }
