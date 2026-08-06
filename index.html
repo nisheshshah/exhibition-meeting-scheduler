@@ -816,8 +816,16 @@
       .then(data => {
         currentBookings = {};
         if (Array.isArray(data)) {
-          rawBookingsList = data;
+          const latestMap = new Map();
           data.forEach(b => {
+            if (b.ref && b.ref !== 'shone' && b.status !== 'cancelled') {
+              latestMap.set(b.ref, b);
+            }
+          });
+          const cleanData = Array.from(latestMap.values());
+          rawBookingsList = cleanData;
+
+          cleanData.forEach(b => {
             const nDate = normalizeDate(b.date);
             const nTime = normalizeTime(b.time);
             if (nDate && nTime) {
