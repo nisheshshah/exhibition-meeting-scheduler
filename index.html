@@ -583,7 +583,8 @@
     { id: 'S013', name: 'Saurabh',          email: 'domsalesgj@universaloleoresins.com' },
     { id: 'S014', name: 'Kiruthi Kumar',    email: 'domsalessouth@universaloleoresins.com' },
     { id: 'S015', name: 'Shubham',          email: 'horecawest@universaloleoresins.com' },
-    { id: 'S020', name: 'Jigesh Shah',      email: 'jigeshshah@universaloleoresins.com' }
+    { id: 'S020', name: 'Jigesh Shah',      email: 'jigeshshah@universaloleoresins.com' },
+    { id: 'S021', name: 'Padma Deshraj',   email: 'padmadeshraj@universaloleoresins.com' }
   ];
 
   function getSalesmen() {
@@ -868,9 +869,16 @@
   function initFromURL() {
     salesmen = getSalesmen();
     const urlParams = new URLSearchParams(window.location.search);
-    const sParam = urlParams.get('s') || urlParams.get('id') || urlParams.get('name') || urlParams.get('rep');
-    const adminParam = urlParams.get('admin') || urlParams.get('mode');
-    const viewParam = urlParams.get('view') || urlParams.get('schedule');
+    let sParam = null;
+    let adminParam = null;
+    let viewParam = null;
+
+    for (const [key, val] of urlParams.entries()) {
+      const k = key.toLowerCase();
+      if (k === 's' || k === 'id' || k === 'name' || k === 'rep') sParam = val;
+      if (k === 'admin' || k === 'mode') adminParam = val;
+      if (k === 'view' || k === 'schedule') viewParam = val;
+    }
 
     if (sParam) {
       const raw = sParam.toLowerCase().trim();
