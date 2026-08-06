@@ -820,9 +820,11 @@
     document.getElementById('closeQrModal').addEventListener('click', () => document.getElementById('qrModal').classList.remove('open'));
     document.getElementById('copySalesmanLink').addEventListener('click', (e) => {
       e.preventDefault();
-      const link = `${window.location.origin}${window.location.pathname}?s=${currentSalesmanId}&lock=1`;
+      const s = salesmen.find(x => x.id === currentSalesmanId);
+      const slug = s ? getSlug(s.name) : currentSalesmanId;
+      const link = `${window.location.origin}${window.location.pathname}?s=${slug}`;
       navigator.clipboard.writeText(link);
-      showToast('Link copied!', `Direct booking link for ${currentSalesmanId} copied to clipboard.`, 'info');
+      showToast('Link copied!', `Direct booking link for ${s ? s.name : currentSalesmanId} copied to clipboard.`, 'info');
     });
 
     // Admin Tab Switcher
@@ -960,9 +962,13 @@
     document.getElementById('salesmanInitial').textContent = s.name.charAt(0).toUpperCase();
     document.getElementById('salesmanSelect').value = currentSalesmanId;
 
+    const selectorContainer = document.getElementById('selectorContainer');
     if (isSalesmanLocked) {
       document.getElementById('lockedBadge').classList.remove('hidden');
-      document.getElementById('salesmanSelect').disabled = true;
+      if (selectorContainer) selectorContainer.style.display = 'none';
+    } else {
+      document.getElementById('lockedBadge').classList.add('hidden');
+      if (selectorContainer) selectorContainer.style.display = 'flex';
     }
   }
 
