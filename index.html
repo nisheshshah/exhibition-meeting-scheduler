@@ -786,11 +786,6 @@
       }
     });
 
-    function requestAdminAccess() {
-      document.getElementById('adminPinInput').value = '';
-      document.getElementById('adminPinModal').classList.add('open');
-    }
-
     const legacyAdminBtn = document.getElementById('openAdminBtn');
     if (legacyAdminBtn) {
       legacyAdminBtn.addEventListener('click', (e) => {
@@ -855,6 +850,13 @@
 
   let isSalesmanScheduleView = false;
 
+  function requestAdminAccess() {
+    const pinInput = document.getElementById('adminPinInput');
+    const pinModal = document.getElementById('adminPinModal');
+    if (pinInput) pinInput.value = '';
+    if (pinModal) pinModal.classList.add('open');
+  }
+
   function initFromURL() {
     const url = new URL(window.location.href);
     const sParam = url.searchParams.get('s') || url.searchParams.get('id') || url.searchParams.get('name') || url.searchParams.get('rep');
@@ -881,7 +883,7 @@
     }
 
     if (adminParam === '1' || adminParam === 'true' || adminParam === 'secret') {
-      setTimeout(() => requestAdminAccess(), 400);
+      setTimeout(() => requestAdminAccess(), 100);
     }
   }
 
