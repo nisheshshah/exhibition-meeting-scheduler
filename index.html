@@ -303,9 +303,10 @@
           <div><div class="text-[10px] uppercase tracking-[2px] text-[var(--muted)] mb-1">Reference</div><div class="font-medium font-mono text-[var(--accent)]" id="successRef">UO-XXXXXX</div></div>
         </div>
       </div>
-      <div class="flex gap-3">
-        <button id="downloadICS" class="flex-1 px-5 py-3 rounded-xl border border-[var(--border)] hover:bg-gray-50 transition font-medium text-sm flex items-center justify-center gap-2"><i class="fa-regular fa-calendar-plus"></i>Add to calendar</button>
-        <button id="closeSuccess" class="flex-1 px-5 py-3 rounded-xl bg-gradient-to-r from-[var(--accent)] to-[var(--accent-2)] text-white font-semibold transition text-sm">Done</button>
+      <div class="flex flex-col sm:flex-row gap-2.5">
+        <a id="addToGoogleCal" target="_blank" rel="noopener noreferrer" class="flex-1 px-4 py-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold transition text-sm flex items-center justify-center gap-2 shadow-sm"><i class="fa-brands fa-google"></i>Add to Google Calendar</a>
+        <button id="downloadICS" class="flex-1 px-4 py-3 rounded-xl border border-[var(--border)] hover:bg-gray-50 transition font-medium text-sm flex items-center justify-center gap-2"><i class="fa-regular fa-calendar-plus"></i>iCal (.ics)</button>
+        <button id="closeSuccess" class="px-5 py-3 rounded-xl bg-gradient-to-r from-[var(--accent)] to-[var(--accent-2)] text-white font-semibold transition text-sm">Done</button>
       </div>
     </div>
   </div>
@@ -1162,6 +1163,21 @@
     fetchBookings();
   }
 
+  function buildGoogleCalendarURL(booking, date, time, salesman) {
+    const [y, mo, da] = date.split('-').map(Number);
+    const [h, mi] = time.split(':').map(Number);
+    const start = new Date(Date.UTC(y, mo - 1, da, h - 5, mi - 30, 0));
+    const end = new Date(start.getTime() + 15 * 60000);
+    const fmt = (d) => d.getUTCFullYear().toString() + (d.getUTCMonth() + 1).toString().padStart(2, '0') + d.getUTCDate().toString().padStart(2, '0') + 'T' + d.getUTCHours().toString().padStart(2, '0') + d.getUTCMinutes().toString().padStart(2, '0') + '00Z';
+    
+    const title = encodeURIComponent(`Meeting with ${salesman ? salesman.name : currentSalesmanId} — Universal Oleoresins`);
+    const details = encodeURIComponent(`Reference Code: ${booking.ref}\nClient: ${booking.firstName} ${booking.lastName}\nCompany: ${booking.company}\nPhone: ${booking.phone}\nSales Representative: ${salesman ? salesman.name : currentSalesmanId}`);
+    const location = encodeURIComponent(`Fi India 2026 - BEC, Goregaon, Mumbai (Stall 3D38, Hall 3)`);
+    const datesStr = `${fmt(start)}/${fmt(end)}`;
+    
+    return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${datesStr}&details=${details}&location=${location}`;
+  }
+
   function showSuccess(date, time, salesman, ref, booking) {
     const d = dates.find(x => x.value === date);
     const slot = timeSlots.find(s => s.value === time);
@@ -1170,6 +1186,12 @@
     document.getElementById('successSalesman').textContent = salesman ? salesman.name : currentSalesmanId;
     document.getElementById('successRef').textContent = ref;
     document.getElementById('downloadICS').dataset.booking = JSON.stringify({ booking, date, time, salesman });
+
+    const gCalBtn = document.getElementById('addToGoogleCal');
+    if (gCalBtn) {
+      gCalBtn.href = buildGoogleCalendarURL(booking, date, time, salesman);
+    }
+
     document.getElementById('successModal').classList.add('open');
   }
 
