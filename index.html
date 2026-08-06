@@ -566,6 +566,11 @@
     } catch(e) { console.error("Supabase init error:", e); }
   }
 
+  function getSlug(name) {
+    if (!name) return '';
+    return name.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+  }
+
   const defaultSalesmen = [
     { id: 'S002', name: 'Jai Shah',         email: 'jaishah@universaloleoresins.com' },
     { id: 'S003', name: 'Nishesh Shah',     email: 'nisheshshah@universaloleoresins.com' },
