@@ -36,14 +36,19 @@ CREATE TABLE IF NOT EXISTS public.exhibitions (
     start_date DATE NOT NULL,
     end_date DATE NOT NULL,
     slot_length_minutes INT DEFAULT 15,
+    timezone VARCHAR(50) DEFAULT 'Asia/Kolkata',
     is_active BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
--- Insert Current Default Exhibition (Fi India 2026)
-INSERT INTO public.exhibitions (id, title, venue, location, start_date, end_date, slot_length_minutes, is_active) VALUES
-('fi-india-2026', 'Fi India 2026', '(BEC), Goregaon, Mumbai', 'Stall 3D38, Hall 3', '2026-08-26', '2026-08-28', 15, TRUE)
-ON CONFLICT (id) DO UPDATE SET title = EXCLUDED.title, venue = EXCLUDED.venue, location = EXCLUDED.location;
+-- Idempotent Column Additions for Upgrade Schema
+ALTER TABLE public.exhibitions ADD COLUMN IF NOT EXISTS timezone VARCHAR(50) DEFAULT 'Asia/Kolkata';
+
+-- Insert Default Exhibition & Dev Staging Exhibition
+INSERT INTO public.exhibitions (id, title, venue, location, start_date, end_date, slot_length_minutes, timezone, is_active) VALUES
+('fi-india-2026', 'Fi India 2026', '(BEC), Goregaon, Mumbai', 'Stall 3D38, Hall 3', '2026-08-26', '2026-08-28', 15, 'Asia/Kolkata', TRUE),
+('fi-india-2026-dev', 'Fi India 2026 (Staging / Dev Test)', '(BEC), Goregaon, Mumbai', 'Stall 3D38 (Staging Test)', '2026-08-26', '2026-08-28', 15, 'Asia/Kolkata', TRUE)
+ON CONFLICT (id) DO UPDATE SET title = EXCLUDED.title, venue = EXCLUDED.venue, location = EXCLUDED.location, timezone = EXCLUDED.timezone;
 
 -- 3. Create Exhibition Team Table (Foreign Keys to exhibitions & salesmen)
 CREATE TABLE IF NOT EXISTS public.exhibition_team (
@@ -54,9 +59,13 @@ CREATE TABLE IF NOT EXISTS public.exhibition_team (
     CONSTRAINT fk_salesman FOREIGN KEY (salesman_id) REFERENCES public.salesmen(id) ON DELETE CASCADE
 );
 
--- Assign all salesmen to Fi India 2026
+-- Assign all salesmen to Fi India 2026 & Staging
 INSERT INTO public.exhibition_team (exhibition_id, salesman_id)
 SELECT 'fi-india-2026', id FROM public.salesmen
+ON CONFLICT DO NOTHING;
+
+INSERT INTO public.exhibition_team (exhibition_id, salesman_id)
+SELECT 'fi-india-2026-dev', id FROM public.salesmen
 ON CONFLICT DO NOTHING;
 
 -- 4. Create Bookings Table
@@ -73,12 +82,24 @@ CREATE TABLE IF NOT EXISTS public.bookings (
     email VARCHAR(150) NOT NULL,
     phone VARCHAR(50) NOT NULL,
     status VARCHAR(20) DEFAULT 'confirmed',
+    lead_tier VARCHAR(10) DEFAULT 'UNASSIGNED',
+    product_interests TEXT DEFAULT '',
+    rep_notes TEXT DEFAULT '',
+    checked_in BOOLEAN DEFAULT FALSE,
+    checked_in_at TIMESTAMP WITH TIME ZONE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
     
     CONSTRAINT fk_booking_exhibition FOREIGN KEY (exhibition_id) REFERENCES public.exhibitions(id) ON DELETE CASCADE,
     CONSTRAINT fk_booking_salesman FOREIGN KEY (salesman_id) REFERENCES public.salesmen(id) ON DELETE CASCADE,
     CONSTRAINT unique_salesman_slot UNIQUE (exhibition_id, salesman_id, date, time)
 );
+
+-- Idempotent column additions for existing bookings tables
+ALTER TABLE public.bookings ADD COLUMN IF NOT EXISTS lead_tier VARCHAR(10) DEFAULT 'UNASSIGNED';
+ALTER TABLE public.bookings ADD COLUMN IF NOT EXISTS product_interests TEXT DEFAULT '';
+ALTER TABLE public.bookings ADD COLUMN IF NOT EXISTS rep_notes TEXT DEFAULT '';
+ALTER TABLE public.bookings ADD COLUMN IF NOT EXISTS checked_in BOOLEAN DEFAULT FALSE;
+ALTER TABLE public.bookings ADD COLUMN IF NOT EXISTS checked_in_at TIMESTAMP WITH TIME ZONE;
 
 -- 5. Safely Enable Supabase Realtime
 DO $$

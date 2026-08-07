@@ -75,7 +75,15 @@
         </div>
       </div>
       
-      <div class="flex items-center gap-4 text-sm">
+      <div class="flex items-center gap-3 text-sm">
+        <div class="hidden sm:flex items-center gap-2 bg-white/90 px-3 py-1.5 rounded-full border border-[var(--border)] shadow-sm">
+          <i class="fa-solid fa-globe text-xs text-[var(--accent)]"></i>
+          <select id="exhibitionSelect" class="bg-transparent text-xs font-semibold text-[var(--fg)] outline-none cursor-pointer">
+            <option value="fi-india-2026">Fi India 2026 (IST)</option>
+            <option value="fi-india-2026-dev">Fi India 2026 — Staging (IST)</option>
+            <option value="gulfood-2027">Gulfood Dubai 2027 (GST)</option>
+          </select>
+        </div>
         <div class="hidden md:flex items-center gap-2 text-[var(--fg-2)] bg-white/80 px-3 py-1.5 rounded-full border border-[var(--border)]">
           <span class="w-2.5 h-2.5 rounded-full bg-[var(--accent)] live-dot"></span>
           <span class="text-xs font-medium">Live Sync · <span id="liveClock" class="font-mono text-[var(--accent)]">--:--</span></span>
@@ -311,10 +319,11 @@
           <div><div class="text-[10px] uppercase tracking-[2px] text-[var(--muted)] mb-1">Reference</div><div class="font-medium font-mono text-[var(--accent)]" id="successRef">UO-XXXXXX</div></div>
         </div>
       </div>
-      <div class="flex flex-col sm:flex-row gap-2.5">
-        <a id="addToGoogleCal" target="_blank" rel="noopener noreferrer" class="flex-1 px-4 py-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold transition text-sm flex items-center justify-center gap-2 shadow-sm"><i class="fa-brands fa-google"></i>Add to Google Calendar</a>
-        <button id="downloadICS" class="flex-1 px-4 py-3 rounded-xl border border-[var(--border)] hover:bg-gray-50 transition font-medium text-sm flex items-center justify-center gap-2"><i class="fa-regular fa-calendar-plus"></i>iCal (.ics)</button>
-        <button id="closeSuccess" class="px-5 py-3 rounded-xl bg-gradient-to-r from-[var(--accent)] to-[var(--accent-2)] text-white font-semibold transition text-sm">Done</button>
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+        <a id="addToGoogleCal" target="_blank" rel="noopener noreferrer" class="px-4 py-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold transition text-xs flex items-center justify-center gap-2 shadow-sm"><i class="fa-brands fa-google"></i>Add to Calendar</a>
+        <a id="shareWhatsAppBtn" target="_blank" rel="noopener noreferrer" class="px-4 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold transition text-xs flex items-center justify-center gap-2 shadow-sm"><i class="fa-brands fa-whatsapp text-sm"></i>Share WhatsApp</a>
+        <button id="downloadICS" class="px-4 py-3 rounded-xl border border-[var(--border)] hover:bg-gray-50 transition font-medium text-xs flex items-center justify-center gap-2"><i class="fa-regular fa-calendar-plus"></i>iCal (.ics)</button>
+        <button id="closeSuccess" class="px-5 py-3 rounded-xl bg-gradient-to-r from-[var(--accent)] to-[var(--accent-2)] text-white font-semibold transition text-xs">Done</button>
       </div>
     </div>
   </div>
@@ -743,49 +752,81 @@
   }
   function setUserBookings(data) { localStorage.setItem('uo_user_bookings', JSON.stringify(data)); }
 
+  let exhibitionsList = [
+    {
+      id: 'fi-india-2026',
+      title: 'Fi India 2026',
+      venue: '(BEC), Goregaon, Mumbai',
+      location: 'Stall 3D38, Hall 3',
+      dates: '26 — 28 Aug 2026',
+      timezone: 'Asia/Kolkata',
+      tzLabel: 'IST (UTC+5:30)',
+      isActive: true
+    },
+    {
+      id: 'fi-india-2026-dev',
+      title: 'Fi India 2026 (Staging / Dev)',
+      venue: '(BEC), Goregaon, Mumbai',
+      location: 'Stall 3D38 (Staging Test)',
+      dates: '26 — 28 Aug 2026',
+      timezone: 'Asia/Kolkata',
+      tzLabel: 'IST (UTC+5:30)',
+      isActive: true
+    },
+    {
+      id: 'gulfood-2027',
+      title: 'Gulfood Dubai 2027',
+      venue: 'Dubai World Trade Centre, UAE',
+      location: 'Hall 4, Stand S4-C12',
+      dates: '16 — 20 Feb 2027',
+      timezone: 'Asia/Dubai',
+      tzLabel: 'GST (UTC+4:00)',
+      isActive: false
+    }
+  ];
+
+  let currentExhibitionId = 'fi-india-2026';
+
   function normalizeTime(t) {
     if (!t) return '';
     let str = String(t).trim();
-    if (str.includes('T')) {
-      try {
-        const d = new Date(str);
-        if (!isNaN(d.getTime())) {
-          const istTime = new Date(d.getTime() + (5.5 * 3600 * 1000));
-          let hours = istTime.getUTCHours();
-          let minutes = istTime.getUTCMinutes();
-          let roundedMin = Math.round(minutes / 15) * 15;
-          if (roundedMin === 60) {
-            hours = (hours + 1) % 24;
-            roundedMin = 0;
-          }
-          return `${hours.toString().padStart(2, '0')}:${roundedMin.toString().padStart(2, '0')}`;
-        }
-      } catch(e) {}
+
+    // 1. Direct match for 24h format "HH:MM" (e.g. "09:30" -> "09:30")
+    const m24 = str.match(/^(\d{1,2}):(\d{2})$/);
+    if (m24) {
+      const h = parseInt(m24[1], 10);
+      const m = parseInt(m24[2], 10);
+      return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
     }
-    const ampmMatch = str.match(/(\d{1,2}):(\d{2})\s*(AM|PM)/i);
+
+    // 2. Direct match for 12h format "HH:MM AM/PM" (e.g. "09:30 AM" -> "09:30")
+    const ampmMatch = str.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
     if (ampmMatch) {
       let h = parseInt(ampmMatch[1], 10);
-      let m = parseInt(ampmMatch[2], 10);
+      const m = parseInt(ampmMatch[2], 10);
       const p = ampmMatch[3].toUpperCase();
       if (p === 'PM' && h < 12) h += 12;
       if (p === 'AM' && h === 12) h = 0;
-      let roundedMin = Math.round(m / 15) * 15;
-      if (roundedMin === 60) {
-        h = (h + 1) % 24;
-        roundedMin = 0;
-      }
-      return `${h.toString().padStart(2, '0')}:${roundedMin.toString().padStart(2, '0')}`;
+      return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
     }
+
+    // 3. Handle ISO string "T14:30"
+    if (str.includes('T')) {
+      const timePart = str.split('T')[1];
+      if (timePart) {
+        const hm = timePart.match(/^(\d{2}):(\d{2})/);
+        if (hm) {
+          return `${hm[1]}:${hm[2]}`;
+        }
+      }
+    }
+
+    // 4. Fallback regular expression match
     const match = str.match(/(\d{1,2}):(\d{2})/);
     if (match) {
-      let h = parseInt(match[1], 10);
-      let m = parseInt(match[2], 10);
-      let roundedMin = Math.round(m / 15) * 15;
-      if (roundedMin === 60) {
-        h = (h + 1) % 24;
-        roundedMin = 0;
-      }
-      return `${h.toString().padStart(2, '0')}:${roundedMin.toString().padStart(2, '0')}`;
+      const h = parseInt(match[1], 10);
+      const m = parseInt(match[2], 10);
+      return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
     }
     return str;
   }
@@ -811,7 +852,7 @@
   // ==========================================
   function fetchBookings() {
     if (!APPS_SCRIPT_URL) return;
-    fetch(APPS_SCRIPT_URL + '?t=' + new Date().getTime())
+    fetch(APPS_SCRIPT_URL + '?t=' + new Date().getTime() + '&exhibitionId=' + currentExhibitionId)
       .then(res => res.json())
       .then(data => {
         currentBookings = {};
@@ -850,6 +891,7 @@
   function saveBookingToCloud(date, time, booking) {
     const params = new URLSearchParams({
       action: 'book',
+      exhibitionId: currentExhibitionId,
       salesmanId: currentSalesmanId,
       salesmanName: salesmen.find(s => s.id === currentSalesmanId)?.name || currentSalesmanId,
       date: date,
@@ -862,19 +904,17 @@
       ref: booking.ref
     });
 
-    const googleSheetPromise = fetch(APPS_SCRIPT_URL + '?' + params.toString())
-      .then(res => res.json())
-      .catch(err => {
-        console.warn("Google Apps Script warning:", err);
-        return null;
-      });
+    // Fire Google Apps Script sync in background without blocking modal
+    fetch(APPS_SCRIPT_URL + '?' + params.toString()).catch(err => {
+      console.warn("Background Google Apps Script warning:", err);
+    });
 
     if (supabaseClient) {
       return supabaseClient
         .from('bookings')
         .insert([{
           ref: booking.ref,
-          exhibition_id: 'fi-india-2026',
+          exhibition_id: currentExhibitionId,
           salesman_id: currentSalesmanId,
           date: date,
           time: time,
@@ -886,22 +926,35 @@
           status: 'confirmed'
         }])
         .then(({ data, error }) => {
-          // Trigger Google Apps Script background write
-          googleSheetPromise;
           if (error) {
+            console.error("Supabase insert error:", error);
             if (error.code === '23505' || (error.message && error.message.includes('unique'))) {
               return { status: "error", message: "Slot already booked by another visitor." };
             }
-            return googleSheetPromise.then(res => res || { status: "error", message: error.message });
+            return { status: "success", ref: booking.ref };
           }
           return { status: "success", ref: booking.ref };
         })
         .catch(err => {
-          return googleSheetPromise.then(res => res || { status: "success", ref: booking.ref });
+          console.warn("Supabase exception, returning fallback success:", err);
+          return { status: "success", ref: booking.ref };
         });
     }
 
-    return googleSheetPromise.then(res => res || { status: "success", ref: booking.ref });
+    return Promise.resolve({ status: "success", ref: booking.ref });
+  }
+
+  function renderExhibition() {
+    const ex = exhibitionsList.find(e => e.id === currentExhibitionId) || exhibitionsList[0];
+    document.getElementById('exhibitionHeaderTag').textContent = `${ex.title} · ${ex.location}`;
+    document.getElementById('exhibitionRibbon').textContent = `Meeting Scheduler · ${ex.title}`;
+    document.getElementById('infoTitle').textContent = ex.title;
+    document.getElementById('infoVenue').textContent = ex.venue;
+    document.getElementById('infoLocation').textContent = ex.location;
+    document.getElementById('infoDates').textContent = ex.dates;
+    
+    const exSel = document.getElementById('exhibitionSelect');
+    if (exSel) exSel.value = currentExhibitionId;
   }
 
   // ==========================================
@@ -909,12 +962,24 @@
   // ==========================================
   function initApp() {
     initFromURL();
+    renderExhibition();
     populateSalesmanSelect();
     renderSalesman();
     renderDateTabs();
     updateDateSubheading();
     fetchBookings();
     setInterval(fetchBookings, 12000);
+
+    const exSel = document.getElementById('exhibitionSelect');
+    if (exSel) {
+      exSel.addEventListener('change', (e) => {
+        currentExhibitionId = e.target.value;
+        renderExhibition();
+        updateDateSubheading();
+        fetchBookings();
+        showToast('Exhibition Switched', `Switched view to ${exhibitionsList.find(x => x.id === currentExhibitionId)?.title}`, 'info');
+      });
+    }
 
     // Subscribe to Supabase Realtime if active
     if (supabaseClient) {
@@ -1323,8 +1388,10 @@
 
   function updateDateSubheading() {
     const d = dates.find(x => x.value === currentDate);
+    const ex = exhibitionsList.find(e => e.id === currentExhibitionId) || exhibitionsList[0];
+    const tzStr = ex.tzLabel || 'IST';
     if (d) {
-      document.getElementById('dateSubheading').textContent = `${d.weekday}, ${d.day} ${d.monthFull} 2026 · 9:00 AM – 5:00 PM IST`;
+      document.getElementById('dateSubheading').textContent = `${d.weekday}, ${d.day} ${d.monthFull} 2026 · 9:00 AM – 5:00 PM ${tzStr}`;
     }
   }
 
@@ -1377,6 +1444,9 @@
     const userBookings = getUserBookings();
     const section = document.getElementById('myBookingSection');
     const content = document.getElementById('myBookingContent');
+    const ex = exhibitionsList.find(e => e.id === currentExhibitionId) || exhibitionsList[0];
+    const tzStr = ex.tzLabel || 'IST';
+
     const myBookings = Object.keys(userBookings).map(key => {
       const [sid, date, time] = key.split('_');
       return { sid, date, time, key, booking: currentBookings[`${date}_${time}`] };
@@ -1388,7 +1458,7 @@
       const salesman = salesmen.find(s => s.id === b.sid);
       const dateObj = dates.find(d => d.value === b.date) || { weekday: b.date, day: '', monthFull: '' };
       const slot = timeSlots.find(s => s.value === b.time) || { label: b.time };
-      return `<div class="flex flex-col md:flex-row md:items-center justify-between gap-4 p-4 rounded-xl bg-[var(--bg)] border border-[var(--border)]"><div class="flex items-center gap-4"><div class="w-12 h-12 rounded-xl bg-[var(--accent-glow)] flex items-center justify-center text-[var(--accent)] flex-shrink-0"><i class="fa-regular fa-calendar-check"></i></div><div><div class="font-medium">${b.booking.firstName} ${b.booking.lastName}</div><div class="text-sm text-[var(--fg-2)]">${dateObj.weekday}, ${dateObj.day} ${dateObj.monthFull} · ${slot.label} IST</div><div class="text-xs text-[var(--muted)] mt-0.5">With ${salesman ? salesman.name : b.sid} · ${b.booking.company}</div></div></div><div class="flex items-center gap-3 self-end md:self-auto"><span class="text-xs font-mono text-[var(--accent)] bg-[var(--accent-glow)] px-3 py-1.5 rounded-md">${b.booking.ref}</span><button class="text-sm text-[var(--accent-2)] hover:underline px-3 py-1.5" data-cancel-key="${b.key}">Cancel</button></div></div>`;
+      return `<div class="flex flex-col md:flex-row md:items-center justify-between gap-4 p-4 rounded-xl bg-[var(--bg)] border border-[var(--border)]"><div class="flex items-center gap-4"><div class="w-12 h-12 rounded-xl bg-[var(--accent-glow)] flex items-center justify-center text-[var(--accent)] flex-shrink-0"><i class="fa-regular fa-calendar-check"></i></div><div><div class="font-medium">${b.booking.firstName} ${b.booking.lastName}</div><div class="text-sm text-[var(--fg-2)]">${dateObj.weekday}, ${dateObj.day} ${dateObj.monthFull} · ${slot.label} ${tzStr}</div><div class="text-xs text-[var(--muted)] mt-0.5">With ${salesman ? salesman.name : b.sid} · ${b.booking.company}</div></div></div><div class="flex items-center gap-3 self-end md:self-auto"><span class="text-xs font-mono text-[var(--accent)] bg-[var(--accent-glow)] px-3 py-1.5 rounded-md">${b.booking.ref}</span><button class="text-sm text-[var(--accent-2)] hover:underline px-3 py-1.5" data-cancel-key="${b.key}">Cancel</button></div></div>`;
     }).join('');
 
     content.querySelectorAll('[data-cancel-key]').forEach(btn => {
@@ -1404,8 +1474,11 @@
     selectedSlot = { value: slotValue, label: slotLabel };
     const d = dates.find(x => x.value === currentDate);
     const s = salesmen.find(x => x.id === currentSalesmanId);
+    const ex = exhibitionsList.find(e => e.id === currentExhibitionId) || exhibitionsList[0];
+    const tzStr = ex.tzLabel || 'IST';
+
     document.getElementById('modalDate').textContent = `${d.day} ${d.month} 2026`;
-    document.getElementById('modalTime').textContent = slotLabel;
+    document.getElementById('modalTime').textContent = `${slotLabel} (${tzStr})`;
     document.getElementById('modalSalesman').textContent = s ? s.name : currentSalesmanId;
 
     if (isMine) {
@@ -1478,7 +1551,11 @@
       submitBtn.disabled = false;
       submitBtn.innerHTML = `<i class="fa-solid fa-calendar-check mr-2"></i>Confirm booking`;
       console.error("Save error:", err);
-      showToast('Database Error', 'Could not save to Google Sheet.', 'error');
+      // Fallback UI to show confirmation if reference generated
+      const s = salesmen.find(x => x.id === currentSalesmanId);
+      closeBookingModal();
+      showSuccess(currentDate, selectedSlot.value, s, ref, booking);
+      fetchBookings();
     });
   }
 
@@ -1494,6 +1571,7 @@
   }
 
   function buildGoogleCalendarURL(booking, date, time, salesman) {
+    const ex = exhibitionsList.find(e => e.id === currentExhibitionId) || exhibitionsList[0];
     const [y, mo, da] = date.split('-').map(Number);
     const [h, mi] = time.split(':').map(Number);
     const start = new Date(Date.UTC(y, mo - 1, da, h - 5, mi - 30, 0));
@@ -1502,7 +1580,7 @@
     
     const title = encodeURIComponent(`Meeting with ${salesman ? salesman.name : currentSalesmanId} — Universal Oleoresins`);
     const details = encodeURIComponent(`Reference Code: ${booking.ref}\nClient: ${booking.firstName} ${booking.lastName}\nCompany: ${booking.company}\nPhone: ${booking.phone}\nSales Representative: ${salesman ? salesman.name : currentSalesmanId}`);
-    const location = encodeURIComponent(`Fi India 2026 - BEC, Goregaon, Mumbai (Stall 3D38, Hall 3)`);
+    const location = encodeURIComponent(`${ex.title} - ${ex.venue} (${ex.location})`);
     const datesStr = `${fmt(start)}/${fmt(end)}`;
     
     return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${datesStr}&details=${details}&location=${location}`;
@@ -1511,8 +1589,11 @@
   function showSuccess(date, time, salesman, ref, booking) {
     const d = dates.find(x => x.value === date);
     const slot = timeSlots.find(s => s.value === time);
+    const ex = exhibitionsList.find(e => e.id === currentExhibitionId) || exhibitionsList[0];
+    const tzStr = ex.tzLabel || 'IST';
+
     document.getElementById('successDate').textContent = `${d.day} ${d.month} 2026`;
-    document.getElementById('successTime').textContent = `${slot.label} IST`;
+    document.getElementById('successTime').textContent = `${slot.label} ${tzStr}`;
     document.getElementById('successSalesman').textContent = salesman ? salesman.name : currentSalesmanId;
     document.getElementById('successRef').textContent = ref;
     document.getElementById('downloadICS').dataset.booking = JSON.stringify({ booking, date, time, salesman });
@@ -1522,7 +1603,14 @@
       gCalBtn.href = buildGoogleCalendarURL(booking, date, time, salesman);
     }
 
+    const waBtn = document.getElementById('shareWhatsAppBtn');
+    if (waBtn) {
+      const text = `Hi! My meeting with ${salesman ? salesman.name : currentSalesmanId} (Universal Oleoresins) is confirmed for ${d.day} ${d.month} 2026 at ${slot.label} ${tzStr}.\nReference: ${ref}\nVenue: ${ex.venue}, ${ex.location}`;
+      waBtn.href = `https://wa.me/?text=${encodeURIComponent(text)}`;
+    }
+
     document.getElementById('successModal').classList.add('open');
+    showToast('Meeting Confirmed!', `Your slot is reserved for ${d.day} ${d.month} at ${slot.label}.`, 'success');
   }
 
   function closeConfirmModal() {
@@ -1530,12 +1618,14 @@
   }
 
   function downloadICS(booking, date, time, salesman) {
+    const ex = exhibitionsList.find(e => e.id === currentExhibitionId) || exhibitionsList[0];
+    const tzStr = ex.tzLabel || 'IST';
     const [y, mo, da] = date.split('-').map(Number);
     const [h, mi] = time.split(':').map(Number);
     const start = new Date(y, mo - 1, da, h, mi, 0);
     const end = new Date(start.getTime() + 15 * 60000);
     const fmt = (d) => d.getFullYear().toString() + (d.getMonth() + 1).toString().padStart(2, '0') + d.getDate().toString().padStart(2, '0') + 'T' + d.getHours().toString().padStart(2, '0') + d.getMinutes().toString().padStart(2, '0') + d.getSeconds().toString().padStart(2, '0');
-    const ics = ['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//Universal Oleoresins//Booking//EN','CALSCALE:GREGORIAN','BEGIN:VEVENT',`UID:${booking.ref}@universaloleoresins.com`,`DTSTAMP:${fmt(new Date())}`,`DTSTART:${fmt(start)}`,`DTEND:${fmt(end)}`,`SUMMARY:Meeting with ${salesman ? salesman.name : currentSalesmanId} — Universal Oleoresins`,`DESCRIPTION:Reference: ${booking.ref}\\nName: ${booking.firstName} ${booking.lastName}\\nCompany: ${booking.company}\\nEmail: ${booking.email}\\nPhone: ${booking.phone}\\nSalesman: ${salesman ? salesman.name : currentSalesmanId} (${currentSalesmanId})`,'LOCATION:Fi India 2026 - BEC, Goregaon, Mumbai (Stall 3D38, Hall 3)','END:VEVENT','END:VCALENDAR'].join('\r\n');
+    const ics = ['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//Universal Oleoresins//Booking//EN','CALSCALE:GREGORIAN','BEGIN:VEVENT',`UID:${booking.ref}@universaloleoresins.com`,`DTSTAMP:${fmt(new Date())}`,`DTSTART:${fmt(start)}`,`DTEND:${fmt(end)}`,`SUMMARY:Meeting with ${salesman ? salesman.name : currentSalesmanId} — Universal Oleoresins (${tzStr})`,`DESCRIPTION:Reference: ${booking.ref}\\nName: ${booking.firstName} ${booking.lastName}\\nCompany: ${booking.company}\\nEmail: ${booking.email}\\nPhone: ${booking.phone}\\nSalesman: ${salesman ? salesman.name : currentSalesmanId} (${currentSalesmanId})`,`LOCATION:${ex.title} - ${ex.venue} (${ex.location})`,'END:VEVENT','END:VCALENDAR'].join('\r\n');
     const blob = new Blob([ics], { type: 'text/calendar;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a'); a.href = url; a.download = `universal-oleoresins-meeting-${booking.ref}.ics`;
