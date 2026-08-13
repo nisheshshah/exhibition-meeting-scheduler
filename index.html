@@ -981,15 +981,22 @@
       });
     }
 
-    // Subscribe to Supabase Realtime if active
+    // Subscribe to Supabase Realtime (INSERT, UPDATE, DELETE) for instant sub-second sync
     if (supabaseClient) {
       try {
         supabaseClient
           .channel('public:bookings')
-          .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'bookings' }, () => fetchBookings())
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'bookings' }, () => fetchBookings())
           .subscribe();
       } catch(e) {}
     }
+
+    // Auto-refresh when user unlocks phone or switches back to tab
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') {
+        fetchBookings();
+      }
+    });
 
     // Event Listeners
     document.getElementById('bookingForm').addEventListener('submit', handleFormSubmit);
@@ -1225,7 +1232,42 @@
     };
 
     rawBookingsList[bIndex] = updatedBooking;
-    saveBookingToCloud(updatedBooking.date, updatedBooking.time, updatedBooking);
+    
+    // Background Google Sheets update
+    if (APPS_SCRIPT_URL) {
+      const params = new URLSearchParams({
+        action: 'book',
+        ref: updatedBooking.ref,
+        salesmanId: updatedBooking.salesmanId || currentSalesmanId,
+        date: updatedBooking.date,
+        time: updatedBooking.time,
+        firstName: updatedBooking.firstName,
+        lastName: updatedBooking.lastName,
+        company: updatedBooking.company,
+        email: updatedBooking.email,
+        phone: updatedBooking.phone
+      });
+      fetch(APPS_SCRIPT_URL + '?' + params.toString()).catch(() => {});
+    }
+
+    // Direct Supabase update by reference code
+    if (supabaseClient) {
+      supabaseClient
+        .from('bookings')
+        .update({
+          first_name: updatedBooking.firstName,
+          last_name: updatedBooking.lastName,
+          company: updatedBooking.company,
+          email: updatedBooking.email,
+          phone: updatedBooking.phone,
+          date: updatedBooking.date,
+          time: updatedBooking.time
+        })
+        .eq('ref', ref)
+        .then(() => fetchBookings())
+        .catch(err => console.warn("Supabase edit sync warning:", err));
+    }
+
     closeEditBookingModal();
     renderSalesmanSchedule();
     renderSlots();
