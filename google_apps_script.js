@@ -3,14 +3,6 @@
  * UNIVERSAL OLEORESINS - EXHIBITION MEETING SCHEDULER BACKEND
  * Target Google Sheet ID: 1YLKPpuAhTqvvfgwUi29l-U7vws8bHwdT5y41QysqGn0
  * ====================================================================
- * INSTRUCTIONS:
- * 1. Open Google Sheet: https://docs.google.com/spreadsheets/d/1YLKPpuAhTqvvfgwUi29l-U7vws8bHwdT5y41QysqGn0
- * 2. Click Extensions -> Apps Script
- * 3. Replace all existing script content with this code.
- * 4. Click 'Deploy' -> 'New deployment' -> Select type: 'Web app'
- * 5. Set 'Execute as': Me
- * 6. Set 'Who has access': Anyone
- * 7. Click Deploy, copy the Web App URL, and paste it into index.html APPS_SCRIPT_URL.
  */
 
 const SHEET_NAME = "Bookings";
@@ -21,6 +13,8 @@ function doGet(e) {
 
   if (action === 'book') {
     return handleBook(params);
+  } else if (action === 'update') {
+    return handleUpdate(params);
   } else if (action === 'cancel') {
     return handleCancel(params);
   } else if (action === 'report') {
@@ -100,10 +94,8 @@ function handleFetch(params) {
 }
 
 function handleBook(params) {
-  // Use LockService for Concurrency Protection (Prevents double booking in Google Sheets)
   const lock = LockService.getScriptLock();
   try {
-    // Wait up to 10 seconds for concurrent requests to finish
     lock.waitLock(10000);
   } catch (e) {
     return jsonResponse({ status: "error", message: "Server busy. Please try again." });
@@ -118,7 +110,6 @@ function handleBook(params) {
     const timeStr = params.time;
     const exhibitionId = params.exhibitionId || "fi-india-2026";
 
-    // Double-booking check
     for (let i = 1; i < data.length; i++) {
       const row = data[i];
       const rowStatus = row[12] || 'confirmed';
@@ -143,8 +134,8 @@ function handleBook(params) {
       exhibitionId,
       salesmanId,
       salesmanName,
-      dateStr,
-      timeStr,
+      "'" + dateStr, // Force text to prevent Google Sheet auto-formatting dates
+      "'" + timeStr, // Force text to prevent Google Sheet auto-formatting times
       params.firstName,
       params.lastName,
       params.company,
@@ -161,6 +152,50 @@ function handleBook(params) {
   }
 }
 
+// ==========================================
+// UPDATE ACTION (Edit Meeting)
+// ==========================================
+function handleUpdate(params) {
+  const lock = LockService.getScriptLock();
+  try { lock.waitLock(10000); } catch (e) { return jsonResponse({ status: "error", message: "Server busy" }); }
+
+  try {
+    const sheet = getOrCreateSheet();
+    const data = sheet.getDataRange().getValues();
+    const ref = params.ref;
+
+    let found = false;
+    for (let i = 1; i < data.length; i++) {
+      const row = data[i];
+      if (row[1] === ref) {
+        // Update Date, Time, First, Last, Company, Email, Phone
+        sheet.getRange(i + 1, 6).setValue("'" + params.date); 
+        sheet.getRange(i + 1, 7).setValue("'" + params.time); 
+        sheet.getRange(i + 1, 8).setValue(params.firstName);
+        sheet.getRange(i + 1, 9).setValue(params.lastName);
+        sheet.getRange(i + 1, 10).setValue(params.company);
+        sheet.getRange(i + 1, 11).setValue(params.email);
+        sheet.getRange(i + 1, 12).setValue(params.phone);
+        found = true;
+        break;
+      }
+    }
+
+    lock.releaseLock();
+    if (found) {
+      return jsonResponse({ status: "success", message: "Booking updated" });
+    } else {
+      return jsonResponse({ status: "error", message: "Booking reference not found" });
+    }
+  } catch (err) {
+    lock.releaseLock();
+    return jsonResponse({ status: "error", message: err.toString() });
+  }
+}
+
+// ==========================================
+// DELETE ACTION (Cancel/Delete Booking Permanently)
+// ==========================================
 function handleCancel(params) {
   const lock = LockService.getScriptLock();
   try { lock.waitLock(10000); } catch (e) { return jsonResponse({ status: "error", message: "Server busy" }); }
@@ -169,23 +204,20 @@ function handleCancel(params) {
     const sheet = getOrCreateSheet();
     const data = sheet.getDataRange().getValues();
     const ref = params.ref;
-    const salesmanId = params.salesmanId;
-    const dateStr = params.date;
-    const timeStr = params.time;
 
     let found = false;
-    for (let i = 1; i < data.length; i++) {
+    // Loop backwards when deleting rows to not mess up the row indexes
+    for (let i = data.length - 1; i >= 1; i--) {
       const row = data[i];
-      if ((ref && row[1] === ref) || (row[3] === salesmanId && formatDateStr(row[5]) === dateStr && row[6] === timeStr)) {
-        sheet.getRange(i + 1, 13).setValue("cancelled");
+      if (ref && row[1] === ref) {
+        sheet.deleteRow(i + 1); // Permanently deletes the row from Google Sheets
         found = true;
-        break;
       }
     }
 
     lock.releaseLock();
     if (found) {
-      return jsonResponse({ status: "success", message: "Booking cancelled" });
+      return jsonResponse({ status: "success", message: "Booking deleted permanently" });
     } else {
       return jsonResponse({ status: "error", message: "Booking reference not found" });
     }
@@ -222,16 +254,13 @@ function handleReport(params) {
 
       stats.totalBookings++;
 
-      // Salesman grouping
       if (!stats.bySalesman[sid]) {
         stats.bySalesman[sid] = { name: sname, count: 0 };
       }
       stats.bySalesman[sid].count++;
 
-      // Date grouping
       stats.byDate[date] = (stats.byDate[date] || 0) + 1;
 
-      // Company grouping
       if (company) {
         stats.byCompany[company] = (stats.byCompany[company] || 0) + 1;
       }

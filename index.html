@@ -78,11 +78,7 @@
       <div class="flex items-center gap-3 text-sm">
         <div class="hidden sm:flex items-center gap-2 bg-white/90 px-3 py-1.5 rounded-full border border-[var(--border)] shadow-sm">
           <i class="fa-solid fa-globe text-xs text-[var(--accent)]"></i>
-          <select id="exhibitionSelect" class="bg-transparent text-xs font-semibold text-[var(--fg)] outline-none cursor-pointer">
-            <option value="fi-india-2026">Fi India 2026 (IST)</option>
-            <option value="fi-india-2026-dev">Fi India 2026 — Staging (IST)</option>
-            <option value="gulfood-2027">Gulfood Dubai 2027 (GST)</option>
-          </select>
+          <span id="exhibitionNameHeader" class="text-xs font-semibold text-[var(--fg)]">Fi India 2026</span>
         </div>
         <div class="hidden md:flex items-center gap-2 text-[var(--fg-2)] bg-white/80 px-3 py-1.5 rounded-full border border-[var(--border)]">
           <span class="w-2.5 h-2.5 rounded-full bg-[var(--accent)] live-dot"></span>
@@ -200,7 +196,7 @@
     </div>
   </section>
 
-  <!-- Salesman Personal Schedule Dashboard (Visible when URL contains ?view=1 or when salesman opens schedule) -->
+  <!-- Salesman Personal Schedule Dashboard -->
   <section class="max-w-6xl mx-auto px-6 pb-12" id="salesmanScheduleSection" style="display: none;">
     <div class="glass rounded-2xl p-6 md:p-8 bg-gradient-to-br from-amber-50/80 to-white border-amber-200 shadow-md">
       <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6 pb-4 border-b border-[var(--border)]">
@@ -497,6 +493,10 @@
 
       <!-- Tab 4: Exhibition Setup Manager -->
       <div id="tabExhibitions" class="tab-content hidden">
+        <div class="mb-4">
+          <label class="text-[10px] uppercase tracking-[2px] text-[var(--muted)] mb-1 block">Select Exhibition to Edit</label>
+          <select id="adminExhibitionSelect" class="input text-xs"></select>
+        </div>
         <form id="exhibitionForm" class="space-y-4">
           <div class="grid grid-cols-2 gap-4">
             <div><label class="text-[10px] uppercase tracking-[2px] text-[var(--muted)] mb-1 block">Exhibition Title</label><input type="text" name="exTitle" class="input text-xs" value="Fi India 2026" required></div>
@@ -717,14 +717,10 @@
     }
   }
 
-  let dates = [
-    { value: '2026-08-26', day: '26', month: 'Aug', monthFull: 'August', weekday: 'Wednesday' },
-    { value: '2026-08-27', day: '27', month: 'Aug', monthFull: 'August', weekday: 'Thursday' },
-    { value: '2026-08-28', day: '28', month: 'Aug', monthFull: 'August', weekday: 'Friday' }
-  ];
+  let dates = [];
 
   let currentSalesmanId = 'S002';
-  let currentDate = '2026-08-26';
+  let currentDate = '';
   let isSalesmanLocked = false;
   let selectedSlot = null;
   let pendingCancel = null;
@@ -752,40 +748,17 @@
   }
   function setUserBookings(data) { localStorage.setItem('uo_user_bookings', JSON.stringify(data)); }
 
-  let exhibitionsList = [
-    {
-      id: 'fi-india-2026',
-      title: 'Fi India 2026',
-      venue: '(BEC), Goregaon, Mumbai',
-      location: 'Stall 3D38, Hall 3',
-      dates: '26 — 28 Aug 2026',
-      timezone: 'Asia/Kolkata',
-      tzLabel: 'IST (UTC+5:30)',
-      isActive: true
-    },
-    {
-      id: 'fi-india-2026-dev',
-      title: 'Fi India 2026 (Staging / Dev)',
-      venue: '(BEC), Goregaon, Mumbai',
-      location: 'Stall 3D38 (Staging Test)',
-      dates: '26 — 28 Aug 2026',
-      timezone: 'Asia/Kolkata',
-      tzLabel: 'IST (UTC+5:30)',
-      isActive: true
-    },
-    {
-      id: 'gulfood-2027',
-      title: 'Gulfood Dubai 2027',
-      venue: 'Dubai World Trade Centre, UAE',
-      location: 'Hall 4, Stand S4-C12',
-      dates: '16 — 20 Feb 2027',
-      timezone: 'Asia/Dubai',
-      tzLabel: 'GST (UTC+4:00)',
-      isActive: false
-    }
+  const defaultExhibitionsList = [
+    { id: 'fi-india-2026', title: 'Fi India 2026', venue: '(BEC), Goregaon, Mumbai', location: 'Stall 3D38, Hall 3', startDate: '2026-08-26', endDate: '2026-08-28', timezone: 'Asia/Kolkata', tzLabel: 'IST (UTC+5:30)' },
+    { id: 'fi-india-2026-dev', title: 'Fi India 2026 (Staging)', venue: '(BEC), Goregaon, Mumbai', location: 'Stall 3D38 (Test)', startDate: '2026-08-26', endDate: '2026-08-28', timezone: 'Asia/Kolkata', tzLabel: 'IST (UTC+5:30)' },
+    { id: 'gulfood-2027', title: 'Gulfood Dubai 2027', venue: 'Dubai World Trade Centre, UAE', location: 'Hall 4, Stand S4-C12', startDate: '2027-02-16', endDate: '2027-02-20', timezone: 'Asia/Dubai', tzLabel: 'GST (UTC+4:00)' }
   ];
-
-  let currentExhibitionId = 'fi-india-2026';
+  
+  function getExhibitions() {
+    try { return JSON.parse(localStorage.getItem('uo_exhibitions')) || defaultExhibitionsList; } catch(e) { return defaultExhibitionsList; }
+  }
+  let exhibitionsList = getExhibitions();
+  let currentExhibitionId = localStorage.getItem('uo_current_exhibition') || 'fi-india-2026';
 
   function normalizeTime(t) {
     if (!t) return '';
@@ -944,17 +917,52 @@
     return Promise.resolve({ status: "success", ref: booking.ref });
   }
 
+  function formatDateRange(start, end) {
+    const s = new Date(start);
+    const e = new Date(end);
+    const sDay = s.getDate();
+    const eDay = e.getDate();
+    const month = s.toLocaleString('default', { month: 'short' });
+    return `${sDay} — ${eDay} ${month} ${s.getFullYear()}`;
+  }
+
+  function generateDatesArray(startDate, endDate) {
+    const arr = [];
+    let current = new Date(startDate);
+    const end = new Date(endDate);
+    while(current <= end) {
+      const value = current.toISOString().split('T')[0];
+      const day = current.getDate().toString();
+      const month = current.toLocaleString('default', { month: 'short' });
+      const monthFull = current.toLocaleString('default', { month: 'long' });
+      const weekday = current.toLocaleString('default', { weekday: 'long' });
+      arr.push({ value, day, month, monthFull, weekday });
+      current.setDate(current.getDate() + 1);
+    }
+    return arr;
+  }
+
   function renderExhibition() {
     const ex = exhibitionsList.find(e => e.id === currentExhibitionId) || exhibitionsList[0];
+    if(!ex) return;
+    
+    // Generate dates dynamically based on exhibition settings
+    dates = generateDatesArray(ex.startDate, ex.endDate);
+    const dateStr = formatDateRange(ex.startDate, ex.endDate);
+    
     document.getElementById('exhibitionHeaderTag').textContent = `${ex.title} · ${ex.location}`;
+    document.getElementById('exhibitionNameHeader').textContent = ex.title;
     document.getElementById('exhibitionRibbon').textContent = `Meeting Scheduler · ${ex.title}`;
     document.getElementById('infoTitle').textContent = ex.title;
     document.getElementById('infoVenue').textContent = ex.venue;
     document.getElementById('infoLocation').textContent = ex.location;
-    document.getElementById('infoDates').textContent = ex.dates;
+    document.getElementById('infoDates').textContent = dateStr;
     
-    const exSel = document.getElementById('exhibitionSelect');
-    if (exSel) exSel.value = currentExhibitionId;
+    // Set default date to the first date of the exhibition
+    currentDate = dates[0] ? dates[0].value : ex.startDate;
+    
+    renderDateTabs();
+    updateDateSubheading();
   }
 
   // ==========================================
@@ -965,19 +973,40 @@
     renderExhibition();
     populateSalesmanSelect();
     renderSalesman();
-    renderDateTabs();
-    updateDateSubheading();
     fetchBookings();
     setInterval(fetchBookings, 12000);
 
-    const exSel = document.getElementById('exhibitionSelect');
-    if (exSel) {
-      exSel.addEventListener('change', (e) => {
+    // Admin Exhibition Select Listener
+    const adminExSel = document.getElementById('adminExhibitionSelect');
+    if (adminExSel) {
+      adminExSel.addEventListener('change', (e) => {
         currentExhibitionId = e.target.value;
+        localStorage.setItem('uo_current_exhibition', currentExhibitionId);
+        populateAdminExhibitionForm();
         renderExhibition();
-        updateDateSubheading();
         fetchBookings();
-        showToast('Exhibition Switched', `Switched view to ${exhibitionsList.find(x => x.id === currentExhibitionId)?.title}`, 'info');
+      });
+    }
+
+    // Admin Exhibition Form Submit Listener
+    const exForm = document.getElementById('exhibitionForm');
+    if (exForm) {
+      exForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const formData = new FormData(exForm);
+        const exIndex = exhibitionsList.findIndex(x => x.id === currentExhibitionId);
+        if (exIndex !== -1) {
+          exhibitionsList[exIndex].title = formData.get('exTitle');
+          exhibitionsList[exIndex].venue = formData.get('exVenue');
+          exhibitionsList[exIndex].location = formData.get('exLocation');
+          exhibitionsList[exIndex].startDate = formData.get('exStartDate');
+          exhibitionsList[exIndex].endDate = formData.get('exEndDate');
+          localStorage.setItem('uo_exhibitions', JSON.stringify(exhibitionsList));
+          
+          renderExhibition();
+          populateAdminExhibitionForm();
+          showToast('Exhibition Updated', 'The main page details have been updated successfully.', 'success');
+        }
       });
     }
 
@@ -1233,10 +1262,10 @@
 
     rawBookingsList[bIndex] = updatedBooking;
     
-    // Background Google Sheets update
+    // Send background update to Google Apps Script (action='update')
     if (APPS_SCRIPT_URL) {
       const params = new URLSearchParams({
-        action: 'book',
+        action: 'update',
         ref: updatedBooking.ref,
         salesmanId: updatedBooking.salesmanId || currentSalesmanId,
         date: updatedBooking.date,
@@ -1250,7 +1279,7 @@
       fetch(APPS_SCRIPT_URL + '?' + params.toString()).catch(() => {});
     }
 
-    // Direct Supabase update by reference code
+    // Direct Supabase update query by reference code
     if (supabaseClient) {
       supabaseClient
         .from('bookings')
@@ -1417,7 +1446,7 @@
     dates.forEach(d => {
       const tab = document.createElement('div');
       tab.className = `date-tab flex items-center gap-4 p-4 rounded-xl ${d.value === currentDate ? 'active' : ''}`;
-      tab.innerHTML = `<div class="text-center min-w-[44px]"><div class="text-3xl font-display font-bold leading-none ${d.value === currentDate ? 'text-white' : 'text-[var(--fg)]'}">${d.day}</div><div class="text-[10px] uppercase tracking-[2px] mt-1 ${d.value === currentDate ? 'text-white/80' : 'text-[var(--muted)]'}">${d.month}</div></div><div class="flex-1"><div class="font-medium text-sm ${d.value === currentDate ? 'text-white' : 'text-[var(--fg)]'}">${d.weekday}</div><div class="text-xs ${d.value === currentDate ? 'text-white/70' : 'text-[var(--muted)]'}">${d.monthFull} 2026</div></div>${d.value === currentDate ? '<i class="fa-solid fa-arrow-right text-white/80 text-sm"></i>' : ''}`;
+      tab.innerHTML = `<div class="text-center min-w-[44px]"><div class="text-3xl font-display font-bold leading-none ${d.value === currentDate ? 'text-white' : 'text-[var(--fg)]'}">${d.day}</div><div class="text-[10px] uppercase tracking-[2px] mt-1 ${d.value === currentDate ? 'text-white/80' : 'text-[var(--muted)]'}">${d.month}</div></div><div class="flex-1"><div class="font-medium text-sm ${d.value === currentDate ? 'text-white' : 'text-[var(--fg)]'}">${d.weekday}</div><div class="text-xs ${d.value === currentDate ? 'text-white/70' : 'text-[var(--muted)]'}">${d.monthFull}</div></div>${d.value === currentDate ? '<i class="fa-solid fa-arrow-right text-white/80 text-sm"></i>' : ''}`;
       tab.addEventListener('click', () => {
         currentDate = d.value;
         renderDateTabs();
@@ -1433,7 +1462,7 @@
     const ex = exhibitionsList.find(e => e.id === currentExhibitionId) || exhibitionsList[0];
     const tzStr = ex.tzLabel || 'IST';
     if (d) {
-      document.getElementById('dateSubheading').textContent = `${d.weekday}, ${d.day} ${d.monthFull} 2026 · 9:00 AM – 5:00 PM ${tzStr}`;
+      document.getElementById('dateSubheading').textContent = `${d.weekday}, ${d.day} ${d.monthFull} · 9:00 AM – 5:00 PM ${tzStr}`;
     }
   }
 
@@ -1454,11 +1483,16 @@
         const nTime = normalizeTime(slot.value);
         const key = `${currentDate}_${nTime}`;
         const isBooked = !!currentBookings[key];
-        if (isBooked) totalBooked++;
         const isMine = !!userBookings[`${currentSalesmanId}_${currentDate}_${slot.value}`] || !!userBookings[`${currentSalesmanId}_${currentDate}_${nTime}`];
+        if (isBooked || isMine) totalBooked++;
+        
         let cls = 'slot-btn'; let extra = ''; let disabled = '';
-        if (isBooked && !isMine) { cls += ' booked'; extra = '<i class="fa-solid fa-lock text-[9px] ml-1 opacity-60"></i>'; disabled = 'disabled'; } 
-        else if (isMine) { cls += ' mine'; extra = '<i class="fa-solid fa-check text-[9px] ml-1"></i>'; }
+        // If it's booked in the cloud OR booked locally by this user, keep it locked!
+        if (isBooked || isMine) { 
+          cls += ' booked'; 
+          extra = '<i class="fa-solid fa-lock text-[9px] ml-1 opacity-60"></i>'; 
+          disabled = 'disabled'; 
+        }
         return `<button class="${cls}" data-slot="${slot.value}" data-label="${slot.label}" ${disabled}>${slot.label}${extra}</button>`;
       }).join('');
       groupDiv.innerHTML = `<div class="flex items-center gap-3 mb-3"><span class="font-display text-sm font-semibold text-[var(--accent)]">${hour12}:00 ${ampm}</span><div class="flex-1 h-px bg-gradient-to-r from-[var(--border)] to-transparent"></div></div><div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5">${slotsHTML}</div>`;
@@ -1519,7 +1553,7 @@
     const ex = exhibitionsList.find(e => e.id === currentExhibitionId) || exhibitionsList[0];
     const tzStr = ex.tzLabel || 'IST';
 
-    document.getElementById('modalDate').textContent = `${d.day} ${d.month} 2026`;
+    document.getElementById('modalDate').textContent = `${d.day} ${d.month}`;
     document.getElementById('modalTime').textContent = `${slotLabel} (${tzStr})`;
     document.getElementById('modalSalesman').textContent = s ? s.name : currentSalesmanId;
 
@@ -1580,10 +1614,19 @@
         const userBookings = getUserBookings();
         userBookings[`${currentSalesmanId}_${currentDate}_${selectedSlot.value}`] = ref;
         setUserBookings(userBookings);
+        
+        // --- INSTANT LOCK: Lock the slot locally immediately ---
+        currentBookings[`${currentDate}_${selectedSlot.value}`] = booking;
+        renderSlots(); // Re-renders the grid instantly, making it locked
+        renderMyBookings(); // Adds it to the "Your scheduled meetings" list instantly
+        // --------------------------------------------------------
+        
         const s = salesmen.find(x => x.id === currentSalesmanId);
         closeBookingModal();
         showSuccess(currentDate, selectedSlot.value, s, response.ref || ref, booking);
-        fetchBookings();
+        
+        // Sync with cloud in the background to update for other users
+        fetchBookings(); 
       } else {
         showToast('Slot taken', 'This slot was just booked by another visitor. Please select another.', 'error');
         closeBookingModal();
@@ -1634,7 +1677,7 @@
     const ex = exhibitionsList.find(e => e.id === currentExhibitionId) || exhibitionsList[0];
     const tzStr = ex.tzLabel || 'IST';
 
-    document.getElementById('successDate').textContent = `${d.day} ${d.month} 2026`;
+    document.getElementById('successDate').textContent = `${d.day} ${d.month}`;
     document.getElementById('successTime').textContent = `${slot.label} ${tzStr}`;
     document.getElementById('successSalesman').textContent = salesman ? salesman.name : currentSalesmanId;
     document.getElementById('successRef').textContent = ref;
@@ -1647,7 +1690,7 @@
 
     const waBtn = document.getElementById('shareWhatsAppBtn');
     if (waBtn) {
-      const text = `Hi! My meeting with ${salesman ? salesman.name : currentSalesmanId} (Universal Oleoresins) is confirmed for ${d.day} ${d.month} 2026 at ${slot.label} ${tzStr}.\nReference: ${ref}\nVenue: ${ex.venue}, ${ex.location}`;
+      const text = `Hi! My meeting with ${salesman ? salesman.name : currentSalesmanId} (Universal Oleoresins) is confirmed for ${d.day} ${d.month} at ${slot.label} ${tzStr}.\nReference: ${ref}\nVenue: ${ex.venue}, ${ex.location}`;
       waBtn.href = `https://wa.me/?text=${encodeURIComponent(text)}`;
     }
 
@@ -1677,6 +1720,21 @@
   // ==========================================
   // ADMIN & REPORTS MANAGEMENT
   // ==========================================
+  function populateAdminExhibitionForm() {
+    const ex = exhibitionsList.find(e => e.id === currentExhibitionId) || exhibitionsList[0];
+    if (!ex) return;
+    
+    const sel = document.getElementById('adminExhibitionSelect');
+    sel.innerHTML = exhibitionsList.map(e => `<option value="${e.id}" ${e.id === currentExhibitionId ? 'selected' : ''}>${e.title}</option>`).join('');
+    
+    const form = document.getElementById('exhibitionForm');
+    form.exTitle.value = ex.title;
+    form.exVenue.value = ex.venue;
+    form.exLocation.value = ex.location;
+    form.exStartDate.value = ex.startDate;
+    form.exEndDate.value = ex.endDate;
+  }
+
   function openAdminModal(isVerified = false) {
     if (!isVerified) {
       document.getElementById('adminModal').classList.remove('open');
@@ -1687,6 +1745,7 @@
     renderTeamManager();
     renderReportsTable();
     renderTeamChecklist();
+    populateAdminExhibitionForm();
     document.getElementById('adminModal').classList.add('open');
   }
 
