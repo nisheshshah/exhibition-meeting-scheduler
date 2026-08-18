@@ -340,65 +340,84 @@ function getSalesmanEmail(id) {
 }
 
 function sendConfirmationEmail(params, ref, salesmanName) {
-  try {
-    const clientEmail = params.email;
-    const salesmanEmail = getSalesmanEmail(params.salesmanId || params.s);
-    if (!clientEmail) return;
+  const clientEmail = params.email;
+  const salesmanEmail = getSalesmanEmail(params.salesmanId || params.s);
+  
+  if (!clientEmail || !clientEmail.includes('@')) return;
 
-    const subject = `Meeting Confirmation: Universal Oleoresins [Ref: ${ref}]`;
-    const bodyText = `Dear ${params.firstName} ${params.lastName},\n\n` +
-      `Your meeting with ${salesmanName} at Universal Oleoresins is confirmed!\n\n` +
-      `Meeting Details:\n` +
-      `- Reference Code: ${ref}\n` +
-      `- Date: ${params.date}\n` +
-      `- Time: ${params.time} IST\n` +
-      `- Company: ${params.company}\n` +
-      `- Sales Representative: ${salesmanName}\n` +
-      `- Location: Stall 3D38, Hall 3 (BEC, Goregaon, Mumbai)\n\n` +
-      `Thank you,\nUniversal Oleoresins Team`;
+  const subject = `Meeting Confirmation: Universal Oleoresins [Ref: ${ref}]`;
+  const bodyText = `Dear ${params.firstName} ${params.lastName},\n\n` +
+    `Your meeting with ${salesmanName} at Universal Oleoresins is confirmed!\n\n` +
+    `Meeting Details:\n` +
+    `- Reference Code: ${ref}\n` +
+    `- Date: ${params.date}\n` +
+    `- Time: ${params.time} IST\n` +
+    `- Company: ${params.company}\n` +
+    `- Sales Representative: ${salesmanName}\n` +
+    `- Location: Stall 3D38, Hall 3 (BEC, Goregaon, Mumbai)\n\n` +
+    `Thank you,\nUniversal Oleoresins Team`;
 
-    const bodyHtml = `
-      <div style="font-family: Arial, sans-serif; color: #1a1410; max-width: 600px; margin: 0 auto; border: 1px solid #e0e0e0; border-radius: 12px; overflow: hidden;">
-        <div style="background-color: #d54e1f; padding: 20px; text-align: center; color: white;">
-          <h2 style="margin: 0; font-size: 22px;">UNIVERSAL OLEORESINS</h2>
-          <p style="margin: 5px 0 0 0; font-size: 13px; opacity: 0.9;">Meeting Confirmation · Fi India 2026</p>
-        </div>
-        <div style="padding: 24px; background-color: #ffffff;">
-          <p style="font-size: 16px; margin-top: 0;">Dear <strong>${params.firstName} ${params.lastName}</strong>,</p>
-          <p style="font-size: 14px; color: #4a3f33; line-height: 1.5;">Your meeting has been successfully confirmed. Here are your reservation details:</p>
-          
-          <table style="width: 100%; border-collapse: collapse; margin: 20px 0; background-color: #fbf7f0; border-radius: 8px; overflow: hidden;">
-            <tr><td style="padding: 10px 14px; border-bottom: 1px solid #eee; font-weight: bold; width: 40%;">Reference Code:</td><td style="padding: 10px 14px; border-bottom: 1px solid #eee; color: #d54e1f; font-weight: bold;">${ref}</td></tr>
-            <tr><td style="padding: 10px 14px; border-bottom: 1px solid #eee; font-weight: bold;">Date & Time:</td><td style="padding: 10px 14px; border-bottom: 1px solid #eee;">${params.date} at ${params.time} IST</td></tr>
-            <tr><td style="padding: 10px 14px; border-bottom: 1px solid #eee; font-weight: bold;">Representative:</td><td style="padding: 10px 14px; border-bottom: 1px solid #eee;">${salesmanName}</td></tr>
-            <tr><td style="padding: 10px 14px; border-bottom: 1px solid #eee; font-weight: bold;">Company:</td><td style="padding: 10px 14px; border-bottom: 1px solid #eee;">${params.company}</td></tr>
-            <tr><td style="padding: 10px 14px; font-weight: bold;">Location:</td><td style="padding: 10px 14px;">Stall 3D38, Hall 3 (BEC, Goregaon, Mumbai)</td></tr>
-          </table>
-
-          <p style="font-size: 13px; color: #666;">We look forward to meeting you at the exhibition!</p>
-        </div>
+  const bodyHtml = `
+    <div style="font-family: Arial, sans-serif; color: #1a1410; max-width: 600px; margin: 0 auto; border: 1px solid #e0e0e0; border-radius: 12px; overflow: hidden;">
+      <div style="background-color: #d54e1f; padding: 20px; text-align: center; color: white;">
+        <h2 style="margin: 0; font-size: 22px;">UNIVERSAL OLEORESINS</h2>
+        <p style="margin: 5px 0 0 0; font-size: 13px; opacity: 0.9;">Meeting Confirmation · Fi India 2026</p>
       </div>
-    `;
+      <div style="padding: 24px; background-color: #ffffff;">
+        <p style="font-size: 16px; margin-top: 0;">Dear <strong>${params.firstName} ${params.lastName}</strong>,</p>
+        <p style="font-size: 14px; color: #4a3f33; line-height: 1.5;">Your meeting has been successfully confirmed. Here are your reservation details:</p>
+        
+        <table style="width: 100%; border-collapse: collapse; margin: 20px 0; background-color: #fbf7f0; border-radius: 8px; overflow: hidden;">
+          <tr><td style="padding: 10px 14px; border-bottom: 1px solid #eee; font-weight: bold; width: 40%;">Reference Code:</td><td style="padding: 10px 14px; border-bottom: 1px solid #eee; color: #d54e1f; font-weight: bold;">${ref}</td></tr>
+          <tr><td style="padding: 10px 14px; border-bottom: 1px solid #eee; font-weight: bold;">Date & Time:</td><td style="padding: 10px 14px; border-bottom: 1px solid #eee;">${params.date} at ${params.time} IST</td></tr>
+          <tr><td style="padding: 10px 14px; border-bottom: 1px solid #eee; font-weight: bold;">Representative:</td><td style="padding: 10px 14px; border-bottom: 1px solid #eee;">${salesmanName}</td></tr>
+          <tr><td style="padding: 10px 14px; border-bottom: 1px solid #eee; font-weight: bold;">Company:</td><td style="padding: 10px 14px; border-bottom: 1px solid #eee;">${params.company}</td></tr>
+          <tr><td style="padding: 10px 14px; font-weight: bold;">Location:</td><td style="padding: 10px 14px;">Stall 3D38, Hall 3 (BEC, Goregaon, Mumbai)</td></tr>
+        </table>
 
-    // Send email to client
-    MailApp.sendEmail({
-      to: clientEmail,
-      subject: subject,
-      body: bodyText,
-      htmlBody: bodyHtml
-    });
+        <p style="font-size: 13px; color: #666;">We look forward to meeting you at the exhibition!</p>
+      </div>
+    </div>
+  `;
 
-    // Also send copy to Sales Representative if valid email exists
-    if (salesmanEmail && salesmanEmail !== clientEmail) {
+  // 1. Send confirmation to client
+  try {
+    MailApp.sendEmail({ to: clientEmail, subject: subject, body: bodyText, htmlBody: bodyHtml });
+  } catch(e1) {
+    try {
+      GmailApp.sendEmail(clientEmail, subject, bodyText, { htmlBody: bodyHtml });
+    } catch(e2) {
+      console.warn("Client email send error:", e2);
+    }
+  }
+
+  // 2. Send notification copy to sales representative
+  if (salesmanEmail && salesmanEmail !== clientEmail) {
+    try {
       MailApp.sendEmail({
         to: salesmanEmail,
         subject: `New Meeting Booked: ${params.firstName} ${params.lastName} (${params.company}) [Ref: ${ref}]`,
         body: bodyText,
         htmlBody: bodyHtml
       });
+    } catch(e3) {
+      try {
+        GmailApp.sendEmail(salesmanEmail, `New Meeting Booked: ${params.firstName} ${params.lastName}`, bodyText, { htmlBody: bodyHtml });
+      } catch(e4) {
+        console.warn("Salesman email send error:", e4);
+      }
     }
-  } catch(e) {
-    console.warn("Could not send confirmation email:", e);
+  }
+}
+
+/**
+ * Helper function: Run this ONCE inside Apps Script editor to authorize email permissions!
+ */
+function testEmailPermissions() {
+  const email = Session.getActiveUser().getEmail() || Session.getEffectiveUser().getEmail();
+  if (email) {
+    MailApp.sendEmail(email, "Universal Oleoresins Email Test", "Email authorization test successful!");
+    Logger.log("Test email sent to " + email);
   }
 }
 
