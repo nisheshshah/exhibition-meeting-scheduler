@@ -202,6 +202,7 @@ function handleUpdate(params) {
     }
 
     const i = targetIndex;
+    const salesmanName = data[i][4] || getSalesmanName(targetSalesmanId);
     sheet.getRange(i + 1, 6).setValue("'" + newDate);
     sheet.getRange(i + 1, 7).setValue("'" + newTime);
     sheet.getRange(i + 1, 8).setValue(params.firstName);
@@ -209,6 +210,9 @@ function handleUpdate(params) {
     sheet.getRange(i + 1, 10).setValue(params.company);
     sheet.getRange(i + 1, 11).setValue(params.email);
     sheet.getRange(i + 1, 12).setValue(params.phone);
+
+    // Send updated meeting email notification to client & sales representative
+    sendUpdateEmail(params, ref, salesmanName, targetSalesmanId);
 
     lock.releaseLock();
     return jsonResponse({ status: "success", message: "Booking updated" });
@@ -235,8 +239,21 @@ function handleCancel(params) {
     for (let i = data.length - 1; i >= 1; i--) {
       const row = data[i];
       if (ref && row[1] === ref) {
-        sheet.deleteRow(i + 1); // Permanently deletes the row from Google Sheets
+        const clientEmail = row[10];
+        const salesmanId = row[3];
+        const salesmanName = row[4];
+        const salesmanEmail = getSalesmanEmail(salesmanId);
+        const firstName = row[7];
+        const lastName = row[8];
+        const company = row[9];
+        const date = formatDateStr(row[5]);
+        const time = row[6];
+
+        sheet.deleteRow(i + 1); // Permanently deletes row from Google Sheets
         found = true;
+
+        // Send cancellation email notification to client & sales representative
+        sendCancellationEmail(clientEmail, salesmanEmail, ref, firstName, lastName, company, date, time, salesmanName);
       }
     }
 
@@ -407,6 +424,84 @@ function sendConfirmationEmail(params, ref, salesmanName) {
         console.warn("Salesman email send error:", e4);
       }
     }
+  }
+}
+
+function sendUpdateEmail(params, ref, salesmanName, salesmanId) {
+  const clientEmail = params.email;
+  const salesmanEmail = getSalesmanEmail(salesmanId || params.salesmanId || params.s);
+  
+  if (!clientEmail || !clientEmail.includes('@')) return;
+
+  const subject = `Updated Meeting Schedule: Universal Oleoresins [Ref: ${ref}]`;
+  const bodyText = `Dear ${params.firstName} ${params.lastName},\n\n` +
+    `Your meeting with ${salesmanName} at Universal Oleoresins has been updated/rescheduled.\n\n` +
+    `Updated Meeting Details:\n` +
+    `- Reference Code: ${ref}\n` +
+    `- New Date: ${params.date}\n` +
+    `- New Time: ${params.time} IST\n` +
+    `- Company: ${params.company}\n` +
+    `- Representative: ${salesmanName}\n` +
+    `- Location: Stall 3D38, Hall 3 (BEC, Goregaon, Mumbai)\n\n` +
+    `Thank you,\nUniversal Oleoresins Team`;
+
+  const bodyHtml = `
+    <div style="font-family: Arial, sans-serif; color: #1a1410; max-width: 600px; margin: 0 auto; border: 1px solid #e0e0e0; border-radius: 12px; overflow: hidden;">
+      <div style="background-color: #e8852b; padding: 20px; text-align: center; color: white;">
+        <h2 style="margin: 0; font-size: 22px;">UNIVERSAL OLEORESINS</h2>
+        <p style="margin: 5px 0 0 0; font-size: 13px; opacity: 0.9;">Meeting Updated / Rescheduled · Fi India 2026</p>
+      </div>
+      <div style="padding: 24px; background-color: #ffffff;">
+        <p style="font-size: 16px; margin-top: 0;">Dear <strong>${params.firstName} ${params.lastName}</strong>,</p>
+        <p style="font-size: 14px; color: #4a3f33; line-height: 1.5;">Your meeting details have been updated. Here is your revised schedule:</p>
+        
+        <table style="width: 100%; border-collapse: collapse; margin: 20px 0; background-color: #fbf7f0; border-radius: 8px; overflow: hidden;">
+          <tr><td style="padding: 10px 14px; border-bottom: 1px solid #eee; font-weight: bold; width: 40%;">Reference Code:</td><td style="padding: 10px 14px; border-bottom: 1px solid #eee; color: #d54e1f; font-weight: bold;">${ref}</td></tr>
+          <tr><td style="padding: 10px 14px; border-bottom: 1px solid #eee; font-weight: bold;">New Date & Time:</td><td style="padding: 10px 14px; border-bottom: 1px solid #eee; color: #d54e1f; font-weight: bold;">${params.date} at ${params.time} IST</td></tr>
+          <tr><td style="padding: 10px 14px; border-bottom: 1px solid #eee; font-weight: bold;">Representative:</td><td style="padding: 10px 14px; border-bottom: 1px solid #eee;">${salesmanName}</td></tr>
+          <tr><td style="padding: 10px 14px; border-bottom: 1px solid #eee; font-weight: bold;">Company:</td><td style="padding: 10px 14px; border-bottom: 1px solid #eee;">${params.company}</td></tr>
+          <tr><td style="padding: 10px 14px; font-weight: bold;">Location:</td><td style="padding: 10px 14px;">Stall 3D38, Hall 3 (BEC, Goregaon, Mumbai)</td></tr>
+        </table>
+
+        <p style="font-size: 13px; color: #666;">We look forward to meeting you at the exhibition!</p>
+      </div>
+    </div>
+  `;
+
+  try { MailApp.sendEmail({ to: clientEmail, subject: subject, body: bodyText, htmlBody: bodyHtml }); } catch(e) { try { GmailApp.sendEmail(clientEmail, subject, bodyText, { htmlBody: bodyHtml }); } catch(err) {} }
+  if (salesmanEmail && salesmanEmail !== clientEmail) {
+    try { MailApp.sendEmail({ to: salesmanEmail, subject: `Meeting Updated: ${params.firstName} ${params.lastName} [Ref: ${ref}]`, body: bodyText, htmlBody: bodyHtml }); } catch(e) { try { GmailApp.sendEmail(salesmanEmail, `Meeting Updated: ${params.firstName} ${params.lastName}`, bodyText, { htmlBody: bodyHtml }); } catch(err) {} }
+  }
+}
+
+function sendCancellationEmail(clientEmail, salesmanEmail, ref, firstName, lastName, company, date, time, salesmanName) {
+  if (!clientEmail || !clientEmail.includes('@')) return;
+
+  const subject = `Meeting Cancelled: Universal Oleoresins [Ref: ${ref}]`;
+  const bodyText = `Dear ${firstName} ${lastName},\n\n` +
+    `Your meeting scheduled for ${date} at ${time} IST with ${salesmanName} at Universal Oleoresins has been cancelled.\n\n` +
+    `Reference Code: ${ref}\n` +
+    `Company: ${company}\n\n` +
+    `The slot has been released. If you wish to reschedule, please visit our scheduler website.\n\n` +
+    `Universal Oleoresins Team`;
+
+  const bodyHtml = `
+    <div style="font-family: Arial, sans-serif; color: #1a1410; max-width: 600px; margin: 0 auto; border: 1px solid #e0e0e0; border-radius: 12px; overflow: hidden;">
+      <div style="background-color: #666666; padding: 20px; text-align: center; color: white;">
+        <h2 style="margin: 0; font-size: 22px;">UNIVERSAL OLEORESINS</h2>
+        <p style="margin: 5px 0 0 0; font-size: 13px; opacity: 0.9;">Meeting Cancellation Notice</p>
+      </div>
+      <div style="padding: 24px; background-color: #ffffff;">
+        <p style="font-size: 16px; margin-top: 0;">Dear <strong>${firstName} ${lastName}</strong>,</p>
+        <p style="font-size: 14px; color: #4a3f33; line-height: 1.5;">This is to confirm that your meeting scheduled for <strong>${date} at ${time} IST</strong> with ${salesmanName} (${company}) has been cancelled and the slot has been released.</p>
+        <p style="font-size: 13px; color: #666;">If you would like to pick a different date or time, please feel free to book a new slot on our online scheduler.</p>
+      </div>
+    </div>
+  `;
+
+  try { MailApp.sendEmail({ to: clientEmail, subject: subject, body: bodyText, htmlBody: bodyHtml }); } catch(e) { try { GmailApp.sendEmail(clientEmail, subject, bodyText, { htmlBody: bodyHtml }); } catch(err) {} }
+  if (salesmanEmail && salesmanEmail !== clientEmail) {
+    try { MailApp.sendEmail({ to: salesmanEmail, subject: `Meeting Cancelled: ${firstName} ${lastName} (${company}) [Ref: ${ref}]`, body: bodyText, htmlBody: bodyHtml }); } catch(e) { try { GmailApp.sendEmail(salesmanEmail, `Meeting Cancelled: ${firstName} ${lastName}`, bodyText, { htmlBody: bodyHtml }); } catch(err) {} }
   }
 }
 
