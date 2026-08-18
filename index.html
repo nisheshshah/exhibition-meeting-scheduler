@@ -856,11 +856,47 @@
   // API SYNC (FETCH & WRITE)
   // ==========================================
   function fetchBookings() {
+    // 1. Primary: Fetch directly from Supabase PostgreSQL for sub-second real-time state
+    if (supabaseClient) {
+      supabaseClient
+        .from('bookings')
+        .select('*')
+        .eq('exhibition_id', currentExhibitionId)
+        .then(({ data, error }) => {
+          if (!error && Array.isArray(data)) {
+            // Map Supabase column snake_case names to camelCase JS objects
+            const formatted = data.map(b => ({
+              ref: b.ref,
+              exhibitionId: b.exhibition_id,
+              salesmanId: b.salesman_id,
+              salesmanName: b.salesman_name || getSalesmanName(b.salesman_id),
+              date: b.date,
+              time: b.time,
+              firstName: b.first_name,
+              lastName: b.last_name,
+              company: b.company,
+              email: b.email,
+              phone: b.phone,
+              status: b.status || 'confirmed'
+            }));
+            processBookingsData(formatted);
+            return;
+          }
+          // Fallback to Google Apps Script if Supabase query fails
+          fetchFromGoogleAppsScript();
+        })
+        .catch(() => fetchFromGoogleAppsScript());
+    } else {
+      fetchFromGoogleAppsScript();
+    }
+  }
+
+  function fetchFromGoogleAppsScript() {
     if (!APPS_SCRIPT_URL) return;
     fetch(APPS_SCRIPT_URL + '?t=' + new Date().getTime() + '&exhibitionId=' + currentExhibitionId)
       .then(res => res.json())
       .then(data => processBookingsData(Array.isArray(data) ? data : []))
-      .catch(err => console.error("Fetch error:", err));
+      .catch(err => console.error("Apps Script fetch error:", err));
   }
 
   function processBookingsData(data) {
@@ -880,9 +916,22 @@
       if (nDate && nTime) {
         b.normDate = nDate;
         b.normTime = nTime;
+
+        // Comprehensive Salesman Identity Matching across ID (S002), slug (jai-shah), and name (Jai Shah)
         const sObj = salesmen.find(s => s.id === currentSalesmanId);
         const sSlug = sObj ? getSlug(sObj.name) : '';
-        if (b.salesmanId === currentSalesmanId || b.salesmanId === sSlug || (b.salesmanName && sObj && b.salesmanName.toLowerCase().includes(sObj.name.toLowerCase()))) {
+        const sNameLower = sObj ? sObj.name.toLowerCase() : '';
+        const bSidLower = (b.salesmanId || '').toLowerCase();
+        const bSnameLower = (b.salesmanName || '').toLowerCase();
+
+        const isMatch = (
+          bSidLower === currentSalesmanId.toLowerCase() ||
+          (sSlug && bSidLower === sSlug) ||
+          (sNameLower && bSnameLower.includes(sNameLower)) ||
+          (sNameLower && sNameLower.includes(bSidLower))
+        );
+
+        if (isMatch) {
           currentBookings[`${nDate}_${nTime}`] = b;
         }
       }
@@ -1607,7 +1656,8 @@
     content.querySelectorAll('[data-cancel-key]').forEach(btn => {
       btn.addEventListener('click', () => {
         const [sid, date, time] = btn.dataset.cancelKey.split('_');
-        pendingCancel = { sid, date, time, key: btn.dataset.cancelKey };
+        const booking = currentBookings[`${date}_${time}`];
+        pendingCancel = { sid, date, time, key: btn.dataset.cancelKey, ref: booking ? booking.ref : null };
         document.getElementById('confirmModal').classList.add('open');
       });
     });
@@ -1718,9 +1768,22 @@
 
   function executeCancel() {
     if (!pendingCancel) return;
+    const ref = pendingCancel.ref;
     const userBookings = getUserBookings();
     delete userBookings[pendingCancel.key];
     setUserBookings(userBookings);
+
+    // Cancel in Supabase Database
+    if (ref && supabaseClient) {
+      supabaseClient.from('bookings').update({ status: 'cancelled' }).eq('ref', ref).then(() => {}).catch(() => {});
+    }
+
+    // Cancel in Google Apps Script
+    if (ref && APPS_SCRIPT_URL) {
+      const params = new URLSearchParams({ action: 'cancel', ref: ref });
+      fetch(APPS_SCRIPT_URL + '?' + params.toString()).catch(() => {});
+    }
+
     closeConfirmModal();
     showToast('Meeting cancelled', 'The slot has been released.', 'success');
     renderMyBookings();
