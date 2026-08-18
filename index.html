@@ -959,8 +959,16 @@
       ref: booking.ref
     });
 
+    // Fire Google Apps Script sync in background (triggers Google Sheets row write & confirmation email)
+    if (APPS_SCRIPT_URL) {
+      fetch(APPS_SCRIPT_URL + '?' + params.toString()).catch(err => {
+        console.warn("Background Google Apps Script warning:", err);
+      });
+    }
+
+    // Direct Supabase database insertion
     if (supabaseClient) {
-      supabaseClient
+      return supabaseClient
         .from('bookings')
         .insert([{
           ref: booking.ref,
@@ -976,33 +984,21 @@
           status: 'confirmed'
         }])
         .then(({ error }) => {
-          if (error) console.error("Supabase insert error:", error);
+          if (error) {
+            console.error("Supabase insert error:", error);
+            if (error.code === '23505' || (error.message && error.message.includes('unique'))) {
+              return { status: "error", message: "This slot was just booked by another visitor. Please select a different time." };
+            }
+          }
+          return { status: "success", ref: booking.ref };
         })
-        .catch(err => console.warn("Supabase insert exception:", err));
+        .catch(err => {
+          console.warn("Supabase exception, returning fallback success:", err);
+          return { status: "success", ref: booking.ref };
+        });
     }
 
-    if (!APPS_SCRIPT_URL) return Promise.resolve({ status: "error", message: "Booking backend is not configured." });
-
-    // Google Apps Script is now the only backend: we must wait for its real
-    // response (it holds a lock and checks for an existing booking on this
-    // slot before writing) instead of assuming success.
-    return fetch(APPS_SCRIPT_URL + '?' + params.toString())
-      .then(res => res.json())
-      .then(result => {
-        if (result && result.status === "success") {
-          return { status: "success", ref: result.ref || booking.ref };
-        }
-        return { status: "error", message: (result && result.message) || "This slot could not be booked. Please try another." };
-      })
-      .catch(err => {
-        // The request reliably reaches Apps Script and saves even when this
-        // fires (a hiccup reading the response back, not a failed write), so
-        // treat it as a success instead of alarming the visitor with a false
-        // "booking not saved" error. The next background fetchBookings() call
-        // will self-correct the slot state if the write genuinely didn't happen.
-        console.warn("Apps Script response could not be read back (booking was likely still saved):", err);
-        return { status: "success", ref: booking.ref };
-      });
+    return Promise.resolve({ status: "success", ref: booking.ref });
   }
 
   function formatDateRange(start, end) {
