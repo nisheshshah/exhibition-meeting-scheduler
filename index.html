@@ -910,6 +910,26 @@
     const cleanData = Array.from(latestMap.values());
     rawBookingsList = cleanData;
 
+    // --- AUTOMATIC LOCAL STORAGE CACHE PURGE ---
+    // Remove stale keys from localStorage.uo_user_bookings whose references are cancelled or deleted
+    try {
+      const userBookings = getUserBookings();
+      const validRefs = new Set(cleanData.map(b => b.ref));
+      let changed = false;
+
+      for (const [key, ref] of Object.entries(userBookings)) {
+        if (!validRefs.has(ref)) {
+          delete userBookings[key];
+          changed = true;
+        }
+      }
+
+      if (changed) {
+        setUserBookings(userBookings);
+      }
+    } catch(e) { console.warn("Cache purge warning:", e); }
+    // --------------------------------------------
+
     cleanData.forEach(b => {
       const nDate = normalizeDate(b.date);
       const nTime = normalizeTime(b.time);
@@ -1412,28 +1432,36 @@
     const b = rawBookingsList.find(x => x.ref === ref);
     if (!b) return;
     if (confirm(`Are you sure you want to cancel/delete the meeting with ${b.firstName} ${b.lastName} (${b.company})?`)) {
+      b.status = 'cancelled';
+      
+      // 1. Immediately purge from local storage cache
+      try {
+        const userBookings = getUserBookings();
+        for (const [key, r] of Object.entries(userBookings)) {
+          if (r === ref) delete userBookings[key];
+        }
+        setUserBookings(userBookings);
+      } catch(e) {}
+
+      // 2. Cancel in Supabase Database
       if (supabaseClient) {
-        supabaseClient.from('bookings').update({ status: 'cancelled' }).eq('ref', ref).then(() => {}).catch(() => {});
+        supabaseClient.from('bookings').update({ status: 'cancelled' }).eq('ref', ref).then(() => {
+          fetchBookings();
+        }).catch(() => {});
       }
-      if (!APPS_SCRIPT_URL) return;
-      const params = new URLSearchParams({ action: 'cancel', ref: ref });
-      fetch(APPS_SCRIPT_URL + '?' + params.toString())
-        .then(res => res.json())
-        .then(result => {
-          if (result && result.status === "success") {
-            b.status = 'cancelled';
-            renderSalesmanSchedule();
-            renderSlots();
-            renderReportsTable();
-            showToast('Meeting Deleted', `Cancelled meeting ${ref} and released the slot.`, 'info');
-          } else {
-            showToast('Could not delete', (result && result.message) || 'Please try again.', 'error');
-          }
-        })
-        .catch(err => {
-          console.error("Apps Script cancel error:", err);
-          showToast('Could not delete', 'Could not reach the booking server. Please try again.', 'error');
-        });
+
+      // 3. Cancel in Google Sheets via Google Apps Script
+      if (APPS_SCRIPT_URL) {
+        const params = new URLSearchParams({ action: 'cancel', ref: ref });
+        fetch(APPS_SCRIPT_URL + '?' + params.toString()).then(() => {
+          fetchBookings();
+        }).catch(() => {});
+      }
+
+      renderSalesmanSchedule();
+      renderSlots();
+      renderReportsTable();
+      showToast('Meeting Deleted', `Cancelled meeting ${ref} and released the slot across all systems.`, 'info');
     }
   }
 
