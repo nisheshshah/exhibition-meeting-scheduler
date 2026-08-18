@@ -163,30 +163,52 @@ function handleUpdate(params) {
     const sheet = getOrCreateSheet();
     const data = sheet.getDataRange().getValues();
     const ref = params.ref;
+    const newDate = params.date;
+    const newTime = params.time;
 
-    let found = false;
+    let targetIndex = -1;
+    let targetExhibitionId = null;
+    let targetSalesmanId = null;
+
     for (let i = 1; i < data.length; i++) {
-      const row = data[i];
-      if (row[1] === ref) {
-        // Update Date, Time, First, Last, Company, Email, Phone
-        sheet.getRange(i + 1, 6).setValue("'" + params.date); 
-        sheet.getRange(i + 1, 7).setValue("'" + params.time); 
-        sheet.getRange(i + 1, 8).setValue(params.firstName);
-        sheet.getRange(i + 1, 9).setValue(params.lastName);
-        sheet.getRange(i + 1, 10).setValue(params.company);
-        sheet.getRange(i + 1, 11).setValue(params.email);
-        sheet.getRange(i + 1, 12).setValue(params.phone);
-        found = true;
+      if (data[i][1] === ref) {
+        targetIndex = i;
+        targetExhibitionId = data[i][2];
+        targetSalesmanId = data[i][3];
         break;
       }
     }
 
-    lock.releaseLock();
-    if (found) {
-      return jsonResponse({ status: "success", message: "Booking updated" });
-    } else {
+    if (targetIndex === -1) {
+      lock.releaseLock();
       return jsonResponse({ status: "error", message: "Booking reference not found" });
     }
+
+    // Make sure the new date/time isn't already taken by a DIFFERENT
+    // booking for this same rep before we overwrite anything.
+    for (let i = 1; i < data.length; i++) {
+      if (i === targetIndex) continue;
+      const row = data[i];
+      const rowStatus = row[12] || 'confirmed';
+      const rowDate = formatDateStr(row[5]);
+      const rowTime = row[6];
+      if (rowStatus !== 'cancelled' && row[2] === targetExhibitionId && row[3] === targetSalesmanId && rowDate === newDate && rowTime === newTime) {
+        lock.releaseLock();
+        return jsonResponse({ status: "error", message: "That slot is already booked. Please choose another time." });
+      }
+    }
+
+    const i = targetIndex;
+    sheet.getRange(i + 1, 6).setValue("'" + newDate);
+    sheet.getRange(i + 1, 7).setValue("'" + newTime);
+    sheet.getRange(i + 1, 8).setValue(params.firstName);
+    sheet.getRange(i + 1, 9).setValue(params.lastName);
+    sheet.getRange(i + 1, 10).setValue(params.company);
+    sheet.getRange(i + 1, 11).setValue(params.email);
+    sheet.getRange(i + 1, 12).setValue(params.phone);
+
+    lock.releaseLock();
+    return jsonResponse({ status: "success", message: "Booking updated" });
   } catch (err) {
     lock.releaseLock();
     return jsonResponse({ status: "error", message: err.toString() });
