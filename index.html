@@ -28,6 +28,10 @@
   .glass { background: var(--bg-2); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid var(--border); box-shadow: var(--shadow); }
   ::-webkit-scrollbar { width: 8px; height: 8px; } ::-webkit-scrollbar-track { background: var(--bg-3); } ::-webkit-scrollbar-thumb { background: var(--accent-light); border-radius: 4px; opacity: 0.6; }
   .slot-btn { position: relative; background: var(--bg-2); border: 1px solid var(--border); color: var(--fg); padding: 14px 10px; border-radius: 10px; cursor: pointer; transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1); font-weight: 500; font-size: 13.5px; text-align: center; overflow: hidden; font-family: 'DM Sans', sans-serif; box-shadow: 0 2px 4px rgba(26, 20, 16, 0.02); }
+  .slot-btn.dual-slot { padding: 8px 6px; min-height: 52px; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+  .slot-secondary-time { font-size: 11px; opacity: 0.9; font-weight: 600; margin-top: 2px; }
+  .slot-btn:not(.booked) .slot-secondary-time { color: var(--accent); }
+  .slot-btn.booked .slot-secondary-time { color: inherit; opacity: 0.6; }
   .slot-btn:not(.booked):not(.mine):hover { background: var(--card-hover); border-color: var(--border-hover); transform: translateY(-2px); box-shadow: 0 8px 20px -8px var(--accent-glow); color: var(--accent); }
   .slot-btn.booked { background: #f0eee9; border-color: rgba(26, 20, 16, 0.05); color: #b0a899; cursor: not-allowed; text-decoration: line-through; text-decoration-color: rgba(26, 20, 16, 0.2); text-decoration-thickness: 1.5px; }
   .slot-btn.mine { background: rgba(46, 139, 46, 0.05); border-color: rgba(46, 139, 46, 0.3); color: var(--success); cursor: pointer; }
@@ -80,9 +84,14 @@
           <i class="fa-solid fa-globe text-xs text-[var(--accent)]"></i>
           <span id="exhibitionNameHeader" class="text-xs font-semibold text-[var(--fg)]">Fi India 2026</span>
         </div>
-        <div class="hidden md:flex items-center gap-2 text-[var(--fg-2)] bg-white/80 px-3 py-1.5 rounded-full border border-[var(--border)]">
-          <span class="w-2.5 h-2.5 rounded-full bg-[var(--accent)] live-dot"></span>
-          <span class="text-xs font-medium">Live Sync · <span id="liveClock" class="font-mono text-[var(--accent)]">--:--</span></span>
+        <div class="hidden md:flex items-center gap-2 text-[var(--fg-2)] bg-white/90 px-3.5 py-1.5 rounded-full border border-[var(--border)] shadow-sm">
+          <span class="w-2 h-2 rounded-full bg-[var(--accent)] live-dot"></span>
+          <span class="text-xs font-medium flex items-center gap-2">
+            <span>Venue: <span id="venueLiveClock" class="font-mono font-bold text-[var(--accent)]">--:--</span> <span id="venueLiveTz" class="text-[10px] text-[var(--muted)] font-semibold">IST</span></span>
+            <span id="headerClockDivider" class="text-[var(--border)]">|</span>
+            <span id="userLiveClockWrapper" class="flex items-center gap-1">You: <span id="userLiveClock" class="font-mono font-bold text-emerald-700">--:--</span> <span id="userLiveTz" class="text-[10px] text-[var(--muted)] font-semibold">GST</span></span>
+          </span>
+          <span id="liveClock" class="hidden">--:--</span>
         </div>
       </div>
     </div>
@@ -177,12 +186,30 @@
       <!-- Time Slots Grid -->
       <div class="lg:col-span-8">
         <div class="glass rounded-2xl p-6 md:p-8">
-          <div class="flex items-start justify-between mb-7 gap-4">
+          <div class="flex items-start justify-between mb-4 gap-4">
             <div>
               <h3 class="font-display text-2xl md:text-3xl font-bold">Available time slots</h3>
               <p class="text-sm text-[var(--fg-2)] mt-1.5" id="dateSubheading">Wednesday, 26 August 2026 · 9:00 AM – 5:00 PM IST</p>
             </div>
             <i class="fa-regular fa-clock text-2xl text-[var(--accent)] hidden md:block mt-1"></i>
+          </div>
+
+          <!-- Timezone & Dual Time Control Toolbar -->
+          <div class="bg-gradient-to-r from-amber-50/70 to-orange-50/50 border border-[var(--border)] rounded-xl p-3 sm:p-3.5 mb-6 flex flex-wrap items-center justify-between gap-3 shadow-sm">
+            <div class="flex items-center gap-2 flex-1 min-w-[220px]">
+              <i class="fa-solid fa-earth-americas text-[var(--accent)] text-sm"></i>
+              <span class="text-xs font-semibold text-[var(--fg-2)] whitespace-nowrap">Time Zone:</span>
+              <select id="userTimezoneSelect" class="input py-1 px-2.5 text-xs font-medium bg-white rounded-lg flex-1 max-w-xs cursor-pointer shadow-sm"></select>
+            </div>
+            <div class="flex items-center gap-2 sm:gap-3 flex-wrap">
+              <button id="dualTimeToggleBtn" type="button" class="px-3 py-1.5 rounded-lg text-xs font-semibold border border-[var(--border)] bg-white hover:bg-[var(--accent-glow)] transition flex items-center gap-1.5 shadow-sm">
+                <i class="fa-solid fa-clock-rotate-left text-[var(--accent)]"></i>
+                <span id="dualTimeToggleText">Dual Time: ON</span>
+              </button>
+              <div id="tzComparisonBadge" class="inline-flex items-center px-2.5 py-1 rounded-md text-[11px] font-medium bg-white/90 text-[var(--fg-2)] border border-[var(--border)]">
+                <span id="tzComparisonText">Venue (IST) ⇄ You</span>
+              </div>
+            </div>
           </div>
           
           <div id="slotsContainer" class="space-y-5"></div>
@@ -343,9 +370,10 @@
       <div class="bg-[var(--bg)] rounded-xl p-5 text-left mb-6 border border-[var(--border)]">
         <div class="grid grid-cols-2 gap-4 text-sm">
           <div><div class="text-[10px] uppercase tracking-[2px] text-[var(--muted)] mb-1">Date</div><div class="font-medium" id="successDate">26 Aug 2026</div></div>
-          <div><div class="text-[10px] uppercase tracking-[2px] text-[var(--muted)] mb-1">Time</div><div class="font-medium" id="successTime">9:00 AM IST</div></div>
+          <div><div class="text-[10px] uppercase tracking-[2px] text-[var(--muted)] mb-1">Venue Time</div><div class="font-medium" id="successTime">9:00 AM IST</div></div>
           <div><div class="text-[10px] uppercase tracking-[2px] text-[var(--muted)] mb-1">With</div><div class="font-medium" id="successSalesman">Jai Shah</div></div>
-          <div><div class="text-[10px] uppercase tracking-[2px] text-[var(--muted)] mb-1">Reference</div><div class="font-medium font-mono text-[var(--accent)]" id="successRef">UO-XXXXXX</div></div>
+          <div id="successLocalTimeWrapper"><div class="text-[10px] uppercase tracking-[2px] text-[var(--muted)] mb-1">Your Local Time</div><div class="font-medium text-[var(--accent)] font-semibold" id="successLocalTime">--</div></div>
+          <div class="col-span-2 sm:col-span-1"><div class="text-[10px] uppercase tracking-[2px] text-[var(--muted)] mb-1">Reference</div><div class="font-medium font-mono text-[var(--accent)]" id="successRef">UO-XXXXXX</div></div>
         </div>
       </div>
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
@@ -792,6 +820,193 @@
   let exhibitionsList = getExhibitions();
   let currentExhibitionId = localStorage.getItem('uo_current_exhibition') || 'fi-india-2026';
 
+  // ==========================================
+  // DUAL TIME ZONE ENGINE & CONFIGURATION
+  // ==========================================
+  const SUPPORTED_TIMEZONES = [
+    { group: "Popular Exhibition Hubs", zones: [
+      { value: "Asia/Kolkata", label: "Mumbai / New Delhi — IST (UTC+5:30)" },
+      { value: "Asia/Dubai", label: "Dubai / UAE — GST (UTC+4:00)" },
+      { value: "Europe/London", label: "London / UK — GMT/BST (UTC+0/+1)" },
+      { value: "Europe/Paris", label: "Paris / Frankfurt — CET/CEST (UTC+1/+2)" },
+      { value: "America/New_York", label: "New York / Eastern US — EST/EDT (UTC-5/-4)" },
+      { value: "Asia/Singapore", label: "Singapore / Malaysia — SGT (UTC+8:00)" }
+    ]},
+    { group: "Asia & Middle East", zones: [
+      { value: "Asia/Riyadh", label: "Riyadh / Saudi Arabia — AST (UTC+3:00)" },
+      { value: "Asia/Bangkok", label: "Bangkok / Jakarta — ICT (UTC+7:00)" },
+      { value: "Asia/Shanghai", label: "Shanghai / Hong Kong — CST (UTC+8:00)" },
+      { value: "Asia/Tokyo", label: "Tokyo / Seoul — JST/KST (UTC+9:00)" }
+    ]},
+    { group: "Europe & Americas", zones: [
+      { value: "Europe/Amsterdam", label: "Amsterdam / Berlin — CET/CEST (UTC+1/+2)" },
+      { value: "America/Chicago", label: "Chicago / Central US — CST/CDT (UTC-6/-5)" },
+      { value: "America/Denver", label: "Denver / Mountain US — MST/MDT (UTC-7/-6)" },
+      { value: "America/Los_Angeles", label: "Los Angeles / Pacific US — PST/PDT (UTC-8/-7)" },
+      { value: "America/Sao_Paulo", label: "São Paulo / Brazil — BRT (UTC-3:00)" }
+    ]},
+    { group: "Australia & UTC", zones: [
+      { value: "Australia/Sydney", label: "Sydney / Melbourne — AEST/AEDT (UTC+10/+11)" },
+      { value: "Pacific/Auckland", label: "Auckland / New Zealand — NZST/NZDT (UTC+12/+13)" },
+      { value: "UTC", label: "Coordinated Universal Time — UTC (UTC+0:00)" }
+    ]}
+  ];
+
+  let detectedUserTimezone = 'Asia/Kolkata';
+  try {
+    detectedUserTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Kolkata';
+  } catch (e) {
+    detectedUserTimezone = 'Asia/Kolkata';
+  }
+
+  let userTimezone = localStorage.getItem('uo_user_timezone') || detectedUserTimezone;
+  let isDualTimezone = localStorage.getItem('uo_dual_timezone') !== null
+    ? localStorage.getItem('uo_dual_timezone') === 'true'
+    : true;
+
+  function getTimeInTimezone(dateStr, timeStr, sourceTz, targetTz) {
+    if (!dateStr || !timeStr) return { time: timeStr, label: timeStr, tzAbbr: '', dayDiff: 0, targetDateStr: dateStr, trueUtcDate: new Date() };
+    try {
+      const [y, m, d] = dateStr.split('-').map(Number);
+      const [hour, min] = timeStr.split(':').map(Number);
+      const approxUtc = new Date(Date.UTC(y, m - 1, d, hour, min, 0));
+
+      const parts = new Intl.DateTimeFormat('en-US', {
+        timeZone: sourceTz,
+        year: 'numeric', month: 'numeric', day: 'numeric',
+        hour: 'numeric', minute: 'numeric', second: 'numeric',
+        hour12: false
+      }).formatToParts(approxUtc);
+      const sp = {};
+      parts.forEach(p => sp[p.type] = p.value);
+      const sy = parseInt(sp.year, 10);
+      const smo = parseInt(sp.month, 10) - 1;
+      const sday = parseInt(sp.day, 10);
+      const sh = parseInt(sp.hour === '24' ? '0' : sp.hour, 10);
+      const smin = parseInt(sp.minute, 10);
+      const sourceUtcVal = Date.UTC(sy, smo, sday, sh, smin, 0);
+      const sourceOffsetMinutes = Math.round((sourceUtcVal - approxUtc.getTime()) / 60000);
+
+      const trueUtcTimestamp = approxUtc.getTime() - sourceOffsetMinutes * 60000;
+      const trueUtcDate = new Date(trueUtcTimestamp);
+
+      const timeFormatter = new Intl.DateTimeFormat('en-US', {
+        timeZone: targetTz,
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true
+      });
+
+      const targetParts = new Intl.DateTimeFormat('en-US', {
+        timeZone: targetTz,
+        timeZoneName: 'short',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit'
+      }).formatToParts(trueUtcDate);
+
+      const tp = {};
+      targetParts.forEach(p => tp[p.type] = p.value);
+      const tzAbbr = tp.timeZoneName || '';
+      const targetDateStr = `${tp.year}-${tp.month}-${tp.day}`;
+
+      let dayDiff = 0;
+      if (targetDateStr > dateStr) dayDiff = 1;
+      else if (targetDateStr < dateStr) dayDiff = -1;
+
+      return {
+        time: timeFormatter.format(trueUtcDate),
+        tzAbbr: tzAbbr,
+        dayDiff: dayDiff,
+        targetDateStr: targetDateStr,
+        trueUtcDate: trueUtcDate
+      };
+    } catch(err) {
+      return {
+        time: timeStr,
+        tzAbbr: '',
+        dayDiff: 0,
+        targetDateStr: dateStr,
+        trueUtcDate: new Date()
+      };
+    }
+  }
+
+  function populateTimezoneSelect() {
+    const sel = document.getElementById('userTimezoneSelect');
+    if (!sel) return;
+
+    let allZones = [];
+    SUPPORTED_TIMEZONES.forEach(g => allZones.push(...g.zones));
+    const isDetectedKnown = allZones.some(z => z.value === detectedUserTimezone);
+
+    let html = '';
+    if (!isDetectedKnown && detectedUserTimezone) {
+      html += `<optgroup label="Detected Time Zone">
+        <option value="${detectedUserTimezone}" ${userTimezone === detectedUserTimezone ? 'selected' : ''}>Local: ${detectedUserTimezone}</option>
+      </optgroup>`;
+    }
+
+    SUPPORTED_TIMEZONES.forEach(group => {
+      html += `<optgroup label="${group.group}">`;
+      group.zones.forEach(z => {
+        const isSel = (z.value === userTimezone) ? 'selected' : '';
+        const isDetectedTag = (z.value === detectedUserTimezone) ? ' ★' : '';
+        html += `<option value="${z.value}" ${isSel}>${z.label}${isDetectedTag}</option>`;
+      });
+      html += `</optgroup>`;
+    });
+
+    sel.innerHTML = html;
+    updateTimezoneControlsUI();
+  }
+
+  function updateTimezoneControlsUI() {
+    const ex = exhibitionsList.find(e => e.id === currentExhibitionId) || exhibitionsList[0];
+    const venueTz = ex.timezone || 'Asia/Kolkata';
+    const venueTzAbbr = ex.tzLabel ? ex.tzLabel.split(' ')[0] : 'IST';
+    
+    const toggleBtn = document.getElementById('dualTimeToggleBtn');
+    const toggleText = document.getElementById('dualTimeToggleText');
+    const compText = document.getElementById('tzComparisonText');
+
+    if (toggleText) {
+      toggleText.textContent = isDualTimezone ? 'Dual Time: ON' : 'Dual Time: OFF';
+    }
+    if (toggleBtn) {
+      if (isDualTimezone) {
+        toggleBtn.classList.add('bg-amber-100', 'border-amber-300', 'text-amber-900');
+        toggleBtn.classList.remove('bg-white', 'text-[var(--fg)]');
+      } else {
+        toggleBtn.classList.remove('bg-amber-100', 'border-amber-300', 'text-amber-900');
+        toggleBtn.classList.add('bg-white', 'text-[var(--fg)]');
+      }
+    }
+
+    let userTzAbbr = userTimezone;
+    try {
+      const parts = new Intl.DateTimeFormat('en-US', { timeZone: userTimezone, timeZoneName: 'short' }).formatToParts(new Date());
+      userTzAbbr = (parts.find(p => p.type === 'timeZoneName') || {}).value || userTimezone.split('/').pop().replace(/_/g, ' ');
+    } catch(e) {}
+
+    if (compText) {
+      if (userTimezone === venueTz) {
+        compText.innerHTML = `<i class="fa-solid fa-check text-emerald-600 mr-1"></i>Venue & You in sync (${venueTzAbbr})`;
+      } else {
+        compText.innerHTML = `<strong>${venueTzAbbr}</strong> (Venue) ⇄ <strong>${userTzAbbr}</strong> (You)`;
+      }
+    }
+
+    const divider = document.getElementById('headerClockDivider');
+    const userClockWrap = document.getElementById('userLiveClockWrapper');
+    if (userClockWrap) {
+      userClockWrap.style.display = (userTimezone === venueTz && !isDualTimezone) ? 'none' : 'flex';
+    }
+    if (divider) {
+      divider.style.display = (userTimezone === venueTz && !isDualTimezone) ? 'none' : 'inline';
+    }
+  }
+
   function normalizeTime(t) {
     if (!t) return '';
     let str = String(t).trim();
@@ -1067,6 +1282,8 @@
     
     renderDateTabs();
     updateDateSubheading();
+    updateTimezoneControlsUI();
+    updateClock();
   }
 
   // ==========================================
@@ -1076,9 +1293,38 @@
     initFromURL();
     renderExhibition();
     populateSalesmanSelect();
+    populateTimezoneSelect();
     renderSalesman();
     fetchBookings();
     setInterval(fetchBookings, 12000);
+
+    // Timezone Selector Listener
+    const tzSel = document.getElementById('userTimezoneSelect');
+    if (tzSel) {
+      tzSel.addEventListener('change', (e) => {
+        userTimezone = e.target.value;
+        localStorage.setItem('uo_user_timezone', userTimezone);
+        updateTimezoneControlsUI();
+        renderSlots();
+        updateDateSubheading();
+        updateClock();
+        showToast('Time Zone Updated', `Displaying times in ${userTimezone.split('/').pop().replace(/_/g, ' ')}.`, 'info');
+      });
+    }
+
+    // Dual Timezone Toggle Button Listener
+    const dualBtn = document.getElementById('dualTimeToggleBtn');
+    if (dualBtn) {
+      dualBtn.addEventListener('click', () => {
+        isDualTimezone = !isDualTimezone;
+        localStorage.setItem('uo_dual_timezone', isDualTimezone);
+        updateTimezoneControlsUI();
+        renderSlots();
+        updateDateSubheading();
+        updateClock();
+        showToast(isDualTimezone ? 'Dual Time Enabled' : 'Dual Time Disabled', isDualTimezone ? 'Showing both venue and local times.' : 'Showing single time.', 'info');
+      });
+    }
 
     // Admin Exhibition Select Listener
     const adminExSel = document.getElementById('adminExhibitionSelect');
@@ -1478,6 +1724,10 @@
       return;
     }
 
+    const ex = exhibitionsList.find(e => e.id === currentExhibitionId) || exhibitionsList[0];
+    const venueTz = ex.timezone || 'Asia/Kolkata';
+    const venueTzAbbr = ex.tzLabel ? ex.tzLabel.split(' ')[0] : 'IST';
+
     const s = salesmen.find(x => x.id === currentSalesmanId) || { name: currentSalesmanId };
     title.textContent = `${s.name}'s Private Meeting Roster`;
     section.style.display = 'block';
@@ -1490,7 +1740,13 @@
       return;
     }
 
-    container.innerHTML = meetings.map(b => `
+    container.innerHTML = meetings.map(b => {
+      let timeText = `${b.time} ${venueTzAbbr}`;
+      if (userTimezone !== venueTz) {
+        const uConv = getTimeInTimezone(b.date, b.time, venueTz, userTimezone);
+        timeText += ` <span class="text-[var(--muted)] font-normal">(${uConv.time} ${uConv.tzAbbr})</span>`;
+      }
+      return `
       <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 p-4 rounded-xl bg-white border border-[var(--border)] shadow-sm hover:border-[var(--accent-light)] transition">
         <div class="flex items-center gap-4">
           <div class="w-12 h-12 rounded-xl bg-[var(--accent-glow)] flex items-center justify-center text-[var(--accent)] flex-shrink-0 font-bold text-base">
@@ -1501,7 +1757,7 @@
             <div class="text-xs text-[var(--muted)] font-semibold mt-0.5">${b.company}</div>
             <div class="text-xs text-[var(--accent)] font-medium mt-1 flex items-center gap-3">
               <span><i class="fa-regular fa-calendar mr-1"></i>${b.date}</span>
-              <span><i class="fa-regular fa-clock mr-1"></i>${b.time} IST</span>
+              <span><i class="fa-regular fa-clock mr-1"></i>${timeText}</span>
             </div>
           </div>
         </div>
@@ -1519,7 +1775,8 @@
           </div>
         </div>
       </div>
-    `).join('');
+    `;
+    }).join('');
   }
 
   function exportSalesmanScheduleCSV() {
@@ -1600,9 +1857,16 @@
   function updateDateSubheading() {
     const d = dates.find(x => x.value === currentDate);
     const ex = exhibitionsList.find(e => e.id === currentExhibitionId) || exhibitionsList[0];
-    const tzStr = ex.tzLabel || 'IST';
+    const venueTz = ex.timezone || 'Asia/Kolkata';
+    const venueTzAbbr = ex.tzLabel ? ex.tzLabel.split(' ')[0] : 'IST';
     if (d) {
-      document.getElementById('dateSubheading').textContent = `${d.weekday}, ${d.day} ${d.monthFull} · 9:00 AM – 5:00 PM ${tzStr}`;
+      let sub = `${d.weekday}, ${d.day} ${d.monthFull} · 9:00 AM – 5:00 PM ${venueTzAbbr} (Venue)`;
+      if (isDualTimezone && userTimezone !== venueTz) {
+        const uStart = getTimeInTimezone(currentDate, '09:00', venueTz, userTimezone);
+        const uEnd = getTimeInTimezone(currentDate, '17:00', venueTz, userTimezone);
+        sub += ` · ${uStart.time} – ${uEnd.time} ${uStart.tzAbbr} (Your Time)`;
+      }
+      document.getElementById('dateSubheading').textContent = sub;
     }
   }
 
@@ -1613,12 +1877,24 @@
     const userBookings = getUserBookings();
     let totalBooked = 0;
 
+    const ex = exhibitionsList.find(e => e.id === currentExhibitionId) || exhibitionsList[0];
+    const venueTz = ex.timezone || 'Asia/Kolkata';
+    const venueTzAbbr = ex.tzLabel ? ex.tzLabel.split(' ')[0] : 'IST';
+    const showDual = isDualTimezone && (userTimezone !== venueTz);
+
     for (let h = 9; h <= 16; h++) {
       const hourSlots = timeSlots.filter(s => s.hour === h);
       const hour12 = h === 0 ? 12 : (h > 12 ? h - 12 : h);
       const ampm = h >= 12 ? 'PM' : 'AM';
       const groupDiv = document.createElement('div');
       groupDiv.className = 'fade-in-up';
+
+      let hourHeaderLabel = `${hour12}:00 ${ampm} ${venueTzAbbr}`;
+      if (showDual) {
+        const uHour = getTimeInTimezone(currentDate, `${h.toString().padStart(2, '0')}:00`, venueTz, userTimezone);
+        hourHeaderLabel += ` <span class="text-xs font-normal text-[var(--muted)] font-mono ml-2">(${uHour.time} ${uHour.tzAbbr})</span>`;
+      }
+
       const slotsHTML = hourSlots.map(slot => {
         const nTime = normalizeTime(slot.value);
         const key = `${currentDate}_${nTime}`;
@@ -1627,15 +1903,29 @@
         if (isBooked || isMine) totalBooked++;
         
         let cls = 'slot-btn'; let extra = ''; let disabled = '';
-        // If it's booked in the cloud OR booked locally by this user, keep it locked!
+        if (showDual) cls += ' dual-slot';
         if (isBooked || isMine) { 
           cls += ' booked'; 
           extra = '<i class="fa-solid fa-lock text-[9px] ml-1 opacity-60"></i>'; 
           disabled = 'disabled'; 
         }
-        return `<button class="${cls}" data-slot="${slot.value}" data-label="${slot.label}" ${disabled}>${slot.label}${extra}</button>`;
+
+        let buttonContent = '';
+        if (showDual) {
+          const uConv = getTimeInTimezone(currentDate, slot.value, venueTz, userTimezone);
+          let dayTag = '';
+          if (uConv.dayDiff === 1) dayTag = ' <span class="text-[9px] text-amber-800 font-bold bg-amber-100 px-1 rounded">(+1d)</span>';
+          else if (uConv.dayDiff === -1) dayTag = ' <span class="text-[9px] text-amber-800 font-bold bg-amber-100 px-1 rounded">(-1d)</span>';
+
+          buttonContent = `<span class="slot-primary-time">${slot.label} <span class="text-[10px] text-[var(--muted)] font-normal">${venueTzAbbr}</span>${extra}</span><span class="slot-secondary-time font-mono">${uConv.time} <span class="text-[9.5px] opacity-75">${uConv.tzAbbr}</span>${dayTag}</span>`;
+        } else {
+          buttonContent = `${slot.label}${extra}`;
+        }
+
+        return `<button class="${cls}" data-slot="${slot.value}" data-label="${slot.label}" ${disabled}>${buttonContent}</button>`;
       }).join('');
-      groupDiv.innerHTML = `<div class="flex items-center gap-3 mb-3"><span class="font-display text-sm font-semibold text-[var(--accent)]">${hour12}:00 ${ampm}</span><div class="flex-1 h-px bg-gradient-to-r from-[var(--border)] to-transparent"></div></div><div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5">${slotsHTML}</div>`;
+
+      groupDiv.innerHTML = `<div class="flex items-center gap-3 mb-3"><span class="font-display text-sm font-semibold text-[var(--accent)]">${hourHeaderLabel}</span><div class="flex-1 h-px bg-gradient-to-r from-[var(--border)] to-transparent"></div></div><div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5">${slotsHTML}</div>`;
       container.appendChild(groupDiv);
     }
 
@@ -1661,7 +1951,8 @@
     const section = document.getElementById('myBookingSection');
     const content = document.getElementById('myBookingContent');
     const ex = exhibitionsList.find(e => e.id === currentExhibitionId) || exhibitionsList[0];
-    const tzStr = ex.tzLabel || 'IST';
+    const venueTz = ex.timezone || 'Asia/Kolkata';
+    const venueTzAbbr = ex.tzLabel ? ex.tzLabel.split(' ')[0] : 'IST';
 
     const myBookings = Object.keys(userBookings).map(key => {
       const [sid, date, time] = key.split('_');
@@ -1674,7 +1965,14 @@
       const salesman = salesmen.find(s => s.id === b.sid);
       const dateObj = dates.find(d => d.value === b.date) || { weekday: b.date, day: '', monthFull: '' };
       const slot = timeSlots.find(s => s.value === b.time) || { label: b.time };
-      return `<div class="flex flex-col md:flex-row md:items-center justify-between gap-4 p-4 rounded-xl bg-[var(--bg)] border border-[var(--border)]"><div class="flex items-center gap-4"><div class="w-12 h-12 rounded-xl bg-[var(--accent-glow)] flex items-center justify-center text-[var(--accent)] flex-shrink-0"><i class="fa-regular fa-calendar-check"></i></div><div><div class="font-medium">${b.booking.firstName} ${b.booking.lastName}</div><div class="text-sm text-[var(--fg-2)]">${dateObj.weekday}, ${dateObj.day} ${dateObj.monthFull} · ${slot.label} ${tzStr}</div><div class="text-xs text-[var(--muted)] mt-0.5">With ${salesman ? salesman.name : b.sid} · ${b.booking.company}</div></div></div><div class="flex items-center gap-3 self-end md:self-auto"><span class="text-xs font-mono text-[var(--accent)] bg-[var(--accent-glow)] px-3 py-1.5 rounded-md">${b.booking.ref}</span><button class="text-sm text-[var(--accent-2)] hover:underline px-3 py-1.5" data-cancel-key="${b.key}">Cancel</button></div></div>`;
+
+      let timeText = `${slot.label} ${venueTzAbbr} (Venue)`;
+      if (userTimezone !== venueTz) {
+        const uConv = getTimeInTimezone(b.date, b.time, venueTz, userTimezone);
+        timeText += ` · ${uConv.time} ${uConv.tzAbbr} (Your Time)`;
+      }
+
+      return `<div class="flex flex-col md:flex-row md:items-center justify-between gap-4 p-4 rounded-xl bg-[var(--bg)] border border-[var(--border)]"><div class="flex items-center gap-4"><div class="w-12 h-12 rounded-xl bg-[var(--accent-glow)] flex items-center justify-center text-[var(--accent)] flex-shrink-0"><i class="fa-regular fa-calendar-check"></i></div><div><div class="font-medium">${b.booking.firstName} ${b.booking.lastName}</div><div class="text-sm text-[var(--fg-2)]">${dateObj.weekday}, ${dateObj.day} ${dateObj.monthFull} · ${timeText}</div><div class="text-xs text-[var(--muted)] mt-0.5">With ${salesman ? salesman.name : b.sid} · ${b.booking.company}</div></div></div><div class="flex items-center gap-3 self-end md:self-auto"><span class="text-xs font-mono text-[var(--accent)] bg-[var(--accent-glow)] px-3 py-1.5 rounded-md">${b.booking.ref}</span><button class="text-sm text-[var(--accent-2)] hover:underline px-3 py-1.5" data-cancel-key="${b.key}">Cancel</button></div></div>`;
     }).join('');
 
     content.querySelectorAll('[data-cancel-key]').forEach(btn => {
@@ -1692,10 +1990,17 @@
     const d = dates.find(x => x.value === currentDate);
     const s = salesmen.find(x => x.id === currentSalesmanId);
     const ex = exhibitionsList.find(e => e.id === currentExhibitionId) || exhibitionsList[0];
-    const tzStr = ex.tzLabel || 'IST';
+    const venueTz = ex.timezone || 'Asia/Kolkata';
+    const venueTzAbbr = ex.tzLabel ? ex.tzLabel.split(' ')[0] : 'IST';
+
+    let timeLabelText = `${slotLabel} ${venueTzAbbr}`;
+    if (isDualTimezone && userTimezone !== venueTz) {
+      const uConv = getTimeInTimezone(currentDate, slotValue, venueTz, userTimezone);
+      timeLabelText += ` (${uConv.time} ${uConv.tzAbbr})`;
+    }
 
     document.getElementById('modalDate').textContent = `${d.day} ${d.month}`;
-    document.getElementById('modalTime').textContent = `${slotLabel} (${tzStr})`;
+    document.getElementById('modalTime').textContent = timeLabelText;
     document.getElementById('modalSalesman').textContent = s ? s.name : currentSalesmanId;
 
     if (isMine) {
@@ -1830,14 +2135,18 @@
 
   function buildGoogleCalendarURL(booking, date, time, salesman) {
     const ex = exhibitionsList.find(e => e.id === currentExhibitionId) || exhibitionsList[0];
-    const [y, mo, da] = date.split('-').map(Number);
-    const [h, mi] = time.split(':').map(Number);
-    const start = new Date(Date.UTC(y, mo - 1, da, h - 5, mi - 30, 0));
+    const venueTz = ex.timezone || 'Asia/Kolkata';
+    const venueTzAbbr = ex.tzLabel ? ex.tzLabel.split(' ')[0] : 'IST';
+    const conv = getTimeInTimezone(date, time, venueTz, 'UTC');
+    const start = conv.trueUtcDate;
     const end = new Date(start.getTime() + 15 * 60000);
     const fmt = (d) => d.getUTCFullYear().toString() + (d.getUTCMonth() + 1).toString().padStart(2, '0') + d.getUTCDate().toString().padStart(2, '0') + 'T' + d.getUTCHours().toString().padStart(2, '0') + d.getUTCMinutes().toString().padStart(2, '0') + '00Z';
     
-    const title = encodeURIComponent(`Meeting with ${salesman ? salesman.name : currentSalesmanId} — Universal Oleoresins`);
-    const details = encodeURIComponent(`Reference Code: ${booking.ref}\nClient: ${booking.firstName} ${booking.lastName}\nCompany: ${booking.company}\nPhone: ${booking.phone}\nSales Representative: ${salesman ? salesman.name : currentSalesmanId}`);
+    const userConv = (userTimezone !== venueTz) ? getTimeInTimezone(date, time, venueTz, userTimezone) : null;
+    const userTimeLine = userConv ? `\nYour Local Time: ${userConv.time} ${userConv.tzAbbr}` : '';
+
+    const title = encodeURIComponent(`Meeting with ${salesman ? salesman.name : currentSalesmanId} — Universal Oleoresins (${ex.title})`);
+    const details = encodeURIComponent(`Reference Code: ${booking.ref}\nClient: ${booking.firstName} ${booking.lastName}\nCompany: ${booking.company}\nPhone: ${booking.phone}\nSales Representative: ${salesman ? salesman.name : currentSalesmanId}\nVenue Time: ${conv.targetDateStr} ${time} ${venueTzAbbr}${userTimeLine}`);
     const location = encodeURIComponent(`${ex.title} - ${ex.venue} (${ex.location})`);
     const datesStr = `${fmt(start)}/${fmt(end)}`;
     
@@ -1848,10 +2157,22 @@
     const d = dates.find(x => x.value === date);
     const slot = timeSlots.find(s => s.value === time);
     const ex = exhibitionsList.find(e => e.id === currentExhibitionId) || exhibitionsList[0];
-    const tzStr = ex.tzLabel || 'IST';
+    const venueTz = ex.timezone || 'Asia/Kolkata';
+    const venueTzAbbr = ex.tzLabel ? ex.tzLabel.split(' ')[0] : 'IST';
 
     document.getElementById('successDate').textContent = `${d.day} ${d.month}`;
-    document.getElementById('successTime').textContent = `${slot.label} ${tzStr}`;
+    document.getElementById('successTime').textContent = `${slot.label} ${venueTzAbbr}`;
+    
+    const localTimeWrapper = document.getElementById('successLocalTimeWrapper');
+    const localTimeEl = document.getElementById('successLocalTime');
+    if (userTimezone !== venueTz) {
+      const uConv = getTimeInTimezone(date, time, venueTz, userTimezone);
+      if (localTimeEl) localTimeEl.textContent = `${uConv.time} ${uConv.tzAbbr}${uConv.dayDiff !== 0 ? (uConv.dayDiff > 0 ? ' (+1d)' : ' (-1d)') : ''}`;
+      if (localTimeWrapper) localTimeWrapper.style.display = 'block';
+    } else {
+      if (localTimeWrapper) localTimeWrapper.style.display = 'none';
+    }
+
     document.getElementById('successSalesman').textContent = salesman ? salesman.name : currentSalesmanId;
     document.getElementById('successRef').textContent = ref;
     document.getElementById('downloadICS').dataset.booking = JSON.stringify({ booking, date, time, salesman });
@@ -1863,7 +2184,12 @@
 
     const waBtn = document.getElementById('shareWhatsAppBtn');
     if (waBtn) {
-      const text = `Hi! My meeting with ${salesman ? salesman.name : currentSalesmanId} (Universal Oleoresins) is confirmed for ${d.day} ${d.month} at ${slot.label} ${tzStr}.\nReference: ${ref}\nVenue: ${ex.venue}, ${ex.location}`;
+      let timeDesc = `${slot.label} ${venueTzAbbr} (Venue)`;
+      if (userTimezone !== venueTz) {
+        const uConv = getTimeInTimezone(date, time, venueTz, userTimezone);
+        timeDesc += ` / ${uConv.time} ${uConv.tzAbbr} (Your Time)`;
+      }
+      const text = `Hi! My meeting with ${salesman ? salesman.name : currentSalesmanId} (Universal Oleoresins) is confirmed for ${d.day} ${d.month} at ${timeDesc}.\nReference: ${ref}\nVenue: ${ex.title} - ${ex.venue}, ${ex.location}`;
       waBtn.href = `https://wa.me/?text=${encodeURIComponent(text)}`;
     }
 
@@ -1877,13 +2203,34 @@
 
   function downloadICS(booking, date, time, salesman) {
     const ex = exhibitionsList.find(e => e.id === currentExhibitionId) || exhibitionsList[0];
-    const tzStr = ex.tzLabel || 'IST';
-    const [y, mo, da] = date.split('-').map(Number);
-    const [h, mi] = time.split(':').map(Number);
-    const start = new Date(y, mo - 1, da, h, mi, 0);
+    const venueTz = ex.timezone || 'Asia/Kolkata';
+    const venueTzAbbr = ex.tzLabel ? ex.tzLabel.split(' ')[0] : 'IST';
+    const conv = getTimeInTimezone(date, time, venueTz, 'UTC');
+    const start = conv.trueUtcDate;
     const end = new Date(start.getTime() + 15 * 60000);
-    const fmt = (d) => d.getFullYear().toString() + (d.getMonth() + 1).toString().padStart(2, '0') + d.getDate().toString().padStart(2, '0') + 'T' + d.getHours().toString().padStart(2, '0') + d.getMinutes().toString().padStart(2, '0') + d.getSeconds().toString().padStart(2, '0');
-    const ics = ['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//Universal Oleoresins//Booking//EN','CALSCALE:GREGORIAN','BEGIN:VEVENT',`UID:${booking.ref}@universaloleoresins.com`,`DTSTAMP:${fmt(new Date())}`,`DTSTART:${fmt(start)}`,`DTEND:${fmt(end)}`,`SUMMARY:Meeting with ${salesman ? salesman.name : currentSalesmanId} — Universal Oleoresins (${tzStr})`,`DESCRIPTION:Reference: ${booking.ref}\\nName: ${booking.firstName} ${booking.lastName}\\nCompany: ${booking.company}\\nEmail: ${booking.email}\\nPhone: ${booking.phone}\\nSalesman: ${salesman ? salesman.name : currentSalesmanId} (${currentSalesmanId})`,`LOCATION:${ex.title} - ${ex.venue} (${ex.location})`,'END:VEVENT','END:VCALENDAR'].join('\r\n');
+    const fmtUtc = (d) => d.getUTCFullYear().toString() + (d.getUTCMonth() + 1).toString().padStart(2, '0') + d.getUTCDate().toString().padStart(2, '0') + 'T' + d.getUTCHours().toString().padStart(2, '0') + d.getUTCMinutes().toString().padStart(2, '0') + '00Z';
+    
+    const userConv = (userTimezone !== venueTz) ? getTimeInTimezone(date, time, venueTz, userTimezone) : null;
+    const userTimeNote = userConv ? `\\nYour Local Time: ${userConv.time} ${userConv.tzAbbr}` : '';
+
+    const ics = [
+      'BEGIN:VCALENDAR',
+      'VERSION:2.0',
+      'PRODID:-//Universal Oleoresins//Booking//EN',
+      'CALSCALE:GREGORIAN',
+      'METHOD:PUBLISH',
+      'BEGIN:VEVENT',
+      `UID:${booking.ref}@universaloleoresins.com`,
+      `DTSTAMP:${fmtUtc(new Date())}`,
+      `DTSTART:${fmtUtc(start)}`,
+      `DTEND:${fmtUtc(end)}`,
+      `SUMMARY:Meeting with ${salesman ? salesman.name : currentSalesmanId} — Universal Oleoresins (${venueTzAbbr})`,
+      `DESCRIPTION:Reference: ${booking.ref}\\nName: ${booking.firstName} ${booking.lastName}\\nCompany: ${booking.company}\\nEmail: ${booking.email}\\nPhone: ${booking.phone}\\nSalesman: ${salesman ? salesman.name : currentSalesmanId}\\nVenue Time: ${date} ${time} ${venueTzAbbr}${userTimeNote}`,
+      `LOCATION:${ex.title} - ${ex.venue} (${ex.location})`,
+      'STATUS:CONFIRMED',
+      'END:VEVENT',
+      'END:VCALENDAR'
+    ].join('\r\n');
     const blob = new Blob([ics], { type: 'text/calendar;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a'); a.href = url; a.download = `universal-oleoresins-meeting-${booking.ref}.ics`;
@@ -2164,8 +2511,41 @@
   }
 
   function updateClock() {
-    try { document.getElementById('liveClock').textContent = new Date().toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: false }); } 
-    catch (e) { const now = new Date(); document.getElementById('liveClock').textContent = now.getHours().toString().padStart(2, '0') + ':' + now.getMinutes().toString().padStart(2, '0'); }
+    const ex = exhibitionsList.find(e => e.id === currentExhibitionId) || exhibitionsList[0];
+    const venueTz = ex.timezone || 'Asia/Kolkata';
+    const venueTzAbbr = ex.tzLabel ? ex.tzLabel.split(' ')[0] : 'IST';
+    const now = new Date();
+
+    // 1. Update Venue Live Clock
+    try {
+      const vTime = now.toLocaleTimeString('en-US', { timeZone: venueTz, hour: '2-digit', minute: '2-digit', hour12: false });
+      const vEl = document.getElementById('venueLiveClock');
+      if (vEl) vEl.textContent = vTime;
+      const vTzEl = document.getElementById('venueLiveTz');
+      if (vTzEl) vTzEl.textContent = venueTzAbbr;
+    } catch(e) {}
+
+    // 2. Update User / Local Live Clock
+    try {
+      const uTime = now.toLocaleTimeString('en-US', { timeZone: userTimezone, hour: '2-digit', minute: '2-digit', hour12: false });
+      const uEl = document.getElementById('userLiveClock');
+      if (uEl) uEl.textContent = uTime;
+
+      const uParts = new Intl.DateTimeFormat('en-US', { timeZone: userTimezone, timeZoneName: 'short' }).formatToParts(now);
+      const uTzName = (uParts.find(p => p.type === 'timeZoneName') || {}).value || '';
+      const uTzEl = document.getElementById('userLiveTz');
+      if (uTzEl) uTzEl.textContent = uTzName;
+    } catch(e) {}
+
+    // 3. Keep fallback legacy liveClock element updated
+    const legacyClock = document.getElementById('liveClock');
+    if (legacyClock) {
+      try {
+        legacyClock.textContent = now.toLocaleTimeString('en-IN', { timeZone: venueTz, hour: '2-digit', minute: '2-digit', hour12: false });
+      } catch (e) {
+        legacyClock.textContent = now.getHours().toString().padStart(2, '0') + ':' + now.getMinutes().toString().padStart(2, '0');
+      }
+    }
   }
 
   // Start Application
