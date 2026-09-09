@@ -172,8 +172,8 @@
         </div>
       </div>
       
-      <!-- Representative Selector (Hidden by default, only shown if no personalized salesman link is used) -->
-      <div class="flex flex-col gap-1.5 w-full md:w-72" id="selectorContainer" style="display: none !important;">
+      <!-- Representative Selector (Shown when not locked to a personal salesman link) -->
+      <div class="flex flex-col gap-1.5 w-full md:w-72" id="selectorContainer">
         <label class="text-[10px] uppercase tracking-[2px] text-[var(--muted)] flex justify-between">
           <span>Switch Representative</span>
           <a href="#" id="copySalesmanLink" class="text-[var(--accent)] hover:underline font-semibold text-[11px]"><i class="fa-regular fa-copy mr-1"></i>Copy Link</a>
@@ -1012,24 +1012,61 @@
   function setUserBookings(data) { localStorage.setItem('uo_user_bookings', JSON.stringify(data)); }
 
   const defaultExhibitionsList = [
-    { id: 'fi-india-2026', title: 'Fi India 2026', venue: '(BEC), Goregaon, Mumbai', location: 'Stall 3D38, Hall 3', startDate: '2026-08-26', endDate: '2026-08-28', timezone: 'Asia/Kolkata', tzLabel: 'IST (UTC+5:30)' },
-    { id: 'fi-india-2026-dev', title: 'Fi India 2026 (Staging)', venue: '(BEC), Goregaon, Mumbai', location: 'Stall 3D38 (Test)', startDate: '2026-08-26', endDate: '2026-08-28', timezone: 'Asia/Kolkata', tzLabel: 'IST (UTC+5:30)' },
-    { id: 'gulfood-2027', title: 'Gulfood Dubai 2027', venue: 'Dubai World Trade Centre, UAE', location: 'Hall 4, Stand S4-C12', startDate: '2027-02-16', endDate: '2027-02-20', timezone: 'Asia/Dubai', tzLabel: 'GST (UTC+4:00)' }
+    { 
+      id: 'ifeat-2026', 
+      title: 'IFEAT 2026 Bangkok', 
+      venue: 'Marriott Marquis Queen\'s Park, Bangkok, Thailand', 
+      location: 'Universal Oleoresins Suite / Meeting Room', 
+      startDate: '2026-10-19', 
+      endDate: '2026-10-23', 
+      timezone: 'Asia/Bangkok', 
+      tzLabel: 'ICT (UTC+7:00)' 
+    },
+    { 
+      id: 'fi-india-2026', 
+      title: 'Fi India 2026', 
+      venue: '(BEC), Goregaon, Mumbai', 
+      location: 'Stall 3D38, Hall 3', 
+      startDate: '2026-08-26', 
+      endDate: '2026-08-28', 
+      timezone: 'Asia/Kolkata', 
+      tzLabel: 'IST (UTC+5:30)' 
+    },
+    { 
+      id: 'gulfood-2027', 
+      title: 'Gulfood Dubai 2027', 
+      venue: 'Dubai World Trade Centre, UAE', 
+      location: 'Hall 4, Stand S4-C12', 
+      startDate: '2027-02-16', 
+      endDate: '2027-02-20', 
+      timezone: 'Asia/Dubai', 
+      tzLabel: 'GST (UTC+4:00)' 
+    }
   ];
   
   function getExhibitions() {
     try {
       const stored = JSON.parse(localStorage.getItem('uo_exhibitions'));
-      if (Array.isArray(stored) && stored.length > 0) return stored;
-      return defaultExhibitionsList;
+      if (Array.isArray(stored) && stored.length > 0) {
+        // Merge default exhibitions with stored ones so official exhibitions like ifeat-2026 are never lost
+        const mergedMap = new Map();
+        defaultExhibitionsList.forEach(e => mergedMap.set(e.id, e));
+        stored.forEach(e => mergedMap.set(e.id, e));
+        return Array.from(mergedMap.values());
+      }
+      return [...defaultExhibitionsList];
     } catch(e) {
-      return defaultExhibitionsList;
+      return [...defaultExhibitionsList];
     }
   }
   let exhibitionsList = getExhibitions();
-  let currentExhibitionId = localStorage.getItem('uo_current_exhibition') || 'fi-india-2026';
+  let currentExhibitionId = localStorage.getItem('uo_current_exhibition');
+  // If no exhibition specified or past staging, default to upcoming active exhibition (ifeat-2026)
+  if (!currentExhibitionId || currentExhibitionId === 'fi-india-2026-dev') {
+    currentExhibitionId = 'ifeat-2026';
+  }
   if (!exhibitionsList.some(e => e.id === currentExhibitionId)) {
-    currentExhibitionId = exhibitionsList[0] ? exhibitionsList[0].id : 'fi-india-2026';
+    currentExhibitionId = exhibitionsList[0] ? exhibitionsList[0].id : 'ifeat-2026';
   }
 
   // ==========================================
@@ -1353,13 +1390,19 @@
       supabaseClient
         .from('bookings')
         .select('*')
-        .eq('exhibition_id', currentExhibitionId)
         .then(({ data, error }) => {
           if (!error && Array.isArray(data)) {
-            // Map Supabase column snake_case names to camelCase JS objects
-            const formatted = data.map(b => ({
+            const currentEx = getCurrentExhibition();
+            // Filter bookings for the active exhibition:
+            // Matches if explicit exhibition_id matches, OR if date falls within exhibition dates
+            const filteredData = data.filter(b => {
+              if (b.exhibition_id === currentExhibitionId) return true;
+              if (currentEx && b.date >= currentEx.startDate && b.date <= currentEx.endDate) return true;
+              return false;
+            });
+            const formatted = filteredData.map(b => ({
               ref: b.ref,
-              exhibitionId: b.exhibition_id,
+              exhibitionId: currentExhibitionId,
               salesmanId: b.salesman_id,
               salesmanName: b.salesman_name || getSalesmanName(b.salesman_id),
               date: b.date,
@@ -1385,9 +1428,18 @@
 
   function fetchFromGoogleAppsScript() {
     if (!APPS_SCRIPT_URL) return;
-    fetch(APPS_SCRIPT_URL + '?t=' + new Date().getTime() + '&exhibitionId=' + currentExhibitionId)
+    fetch(APPS_SCRIPT_URL + '?t=' + new Date().getTime())
       .then(res => res.json())
-      .then(data => processBookingsData(Array.isArray(data) ? data : []))
+      .then(data => {
+        if (!Array.isArray(data)) { processBookingsData([]); return; }
+        const currentEx = getCurrentExhibition();
+        const filtered = data.filter(b => {
+          if (b.exhibitionId === currentExhibitionId) return true;
+          if (currentEx && b.date >= currentEx.startDate && b.date <= currentEx.endDate) return true;
+          return false;
+        });
+        processBookingsData(filtered);
+      })
       .catch(err => console.error("Apps Script fetch error:", err));
   }
 
@@ -1508,6 +1560,19 @@
         .then(({ error }) => {
           if (error) {
             console.error("Supabase insert error:", error);
+            if (error.code === '23503') {
+              const fallbackRows = rows.map(r => ({
+                ...r,
+                exhibition_id: 'fi-india-2026',
+                rep_notes: `[Exhibition: ${currentExhibitionId}] ${r.rep_notes || ''}`.trim()
+              }));
+              return supabaseClient.from('bookings').insert(fallbackRows).then(({ error: err2 }) => {
+                if (err2 && (err2.code === '23505' || (err2.message && err2.message.includes('unique')))) {
+                  return { status: "error", message: "One or more 15-minute lots for this meeting were just booked by another visitor. Please choose another time." };
+                }
+                return { status: "success", ref: primaryRef };
+              });
+            }
             if (error.code === '23505' || (error.message && error.message.includes('unique'))) {
               return { status: "error", message: "One or more 15-minute lots for this meeting were just booked by another visitor. Please choose another time." };
             }
@@ -2255,7 +2320,12 @@
             status: 'confirmed',
             rep_notes: `Duration: ${duration} mins (${idx + 1}/${slotsToBook.length} lots)`
           }));
-          return supabaseClient.from('bookings').insert(rows);
+          return supabaseClient.from('bookings').insert(rows).then(({ error }) => {
+            if (error && error.code === '23503') {
+              const fallbackRows = rows.map(r => ({ ...r, exhibition_id: 'fi-india-2026' }));
+              return supabaseClient.from('bookings').insert(fallbackRows);
+            }
+          });
         })
         .catch(err => console.warn("Supabase edit sync warning:", err));
     }

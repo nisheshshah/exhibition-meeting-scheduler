@@ -44,11 +44,16 @@ CREATE TABLE IF NOT EXISTS public.exhibitions (
 -- Idempotent Column Additions for Upgrade Schema
 ALTER TABLE public.exhibitions ADD COLUMN IF NOT EXISTS timezone VARCHAR(50) DEFAULT 'Asia/Kolkata';
 
--- Insert Default Exhibition & Dev Staging Exhibition
+-- Insert Default Exhibitions (IFEAT 2026, Fi India 2026, Gulfood 2027)
 INSERT INTO public.exhibitions (id, title, venue, location, start_date, end_date, slot_length_minutes, timezone, is_active) VALUES
+('ifeat-2026', 'IFEAT 2026 Bangkok', 'Marriott Marquis Queen''s Park, Bangkok, Thailand', 'Universal Oleoresins Suite / Meeting Room', '2026-10-19', '2026-10-23', 15, 'Asia/Bangkok', TRUE),
 ('fi-india-2026', 'Fi India 2026', '(BEC), Goregaon, Mumbai', 'Stall 3D38, Hall 3', '2026-08-26', '2026-08-28', 15, 'Asia/Kolkata', TRUE),
-('fi-india-2026-dev', 'Fi India 2026 (Staging / Dev Test)', '(BEC), Goregaon, Mumbai', 'Stall 3D38 (Staging Test)', '2026-08-26', '2026-08-28', 15, 'Asia/Kolkata', TRUE)
+('fi-india-2026-dev', 'Fi India 2026 (Staging / Dev Test)', '(BEC), Goregaon, Mumbai', 'Stall 3D38 (Staging Test)', '2026-08-26', '2026-08-28', 15, 'Asia/Kolkata', TRUE),
+('gulfood-2027', 'Gulfood Dubai 2027', 'Dubai World Trade Centre, UAE', 'Hall 4, Stand S4-C12', '2027-02-16', '2027-02-20', 15, 'Asia/Dubai', TRUE)
 ON CONFLICT (id) DO UPDATE SET title = EXCLUDED.title, venue = EXCLUDED.venue, location = EXCLUDED.location, timezone = EXCLUDED.timezone;
+
+-- Migrate October 2026 IFEAT bookings from fi-india-2026 to ifeat-2026
+UPDATE public.bookings SET exhibition_id = 'ifeat-2026' WHERE date >= '2026-10-01' AND date <= '2026-10-31';
 
 -- 3. Create Exhibition Team Table (Foreign Keys to exhibitions & salesmen)
 CREATE TABLE IF NOT EXISTS public.exhibition_team (
@@ -120,6 +125,8 @@ ALTER TABLE public.bookings ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "Allow public read access on salesmen" ON public.salesmen;
 DROP POLICY IF EXISTS "Allow public read access on exhibitions" ON public.exhibitions;
+DROP POLICY IF EXISTS "Allow public insert on exhibitions" ON public.exhibitions;
+DROP POLICY IF EXISTS "Allow public update on exhibitions" ON public.exhibitions;
 DROP POLICY IF EXISTS "Allow public read access on exhibition_team" ON public.exhibition_team;
 DROP POLICY IF EXISTS "Allow public read access on bookings" ON public.bookings;
 DROP POLICY IF EXISTS "Allow public insert on bookings" ON public.bookings;
@@ -127,6 +134,8 @@ DROP POLICY IF EXISTS "Allow public update on bookings" ON public.bookings;
 
 CREATE POLICY "Allow public read access on salesmen" ON public.salesmen FOR SELECT USING (true);
 CREATE POLICY "Allow public read access on exhibitions" ON public.exhibitions FOR SELECT USING (true);
+CREATE POLICY "Allow public insert on exhibitions" ON public.exhibitions FOR INSERT WITH CHECK (true);
+CREATE POLICY "Allow public update on exhibitions" ON public.exhibitions FOR UPDATE USING (true);
 CREATE POLICY "Allow public read access on exhibition_team" ON public.exhibition_team FOR SELECT USING (true);
 CREATE POLICY "Allow public read access on bookings" ON public.bookings FOR SELECT USING (true);
 CREATE POLICY "Allow public insert on bookings" ON public.bookings FOR INSERT WITH CHECK (true);
