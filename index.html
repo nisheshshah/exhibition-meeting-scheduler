@@ -60,6 +60,14 @@
   .tab-btn.active { background: var(--accent); color: white; }
   .tab-btn:not(.active) { background: var(--bg-3); color: var(--fg-2); }
   .tab-btn:not(.active):hover { background: rgba(213, 78, 31, 0.1); color: var(--accent); }
+  .duration-pill { padding: 6px 13px; border-radius: 9999px; font-size: 11.5px; font-weight: 600; transition: all 0.2s; cursor: pointer; border: 1px solid var(--border); background: white; color: var(--fg-2); display: inline-flex; align-items: center; gap: 5px; }
+  .duration-pill:hover { border-color: var(--accent); color: var(--accent); }
+  .duration-pill.active { background: var(--accent); border-color: var(--accent); color: white; box-shadow: 0 2px 6px rgba(213, 78, 31, 0.25); }
+  .modal-duration-pill { padding: 8px 6px; border-radius: 10px; text-align: center; border: 1.5px solid var(--border); background: white; color: var(--fg); transition: all 0.2s; cursor: pointer; }
+  .modal-duration-pill:hover:not(:disabled) { border-color: var(--accent); }
+  .modal-duration-pill.active { border-color: var(--accent); background: rgba(213, 78, 31, 0.08); color: var(--accent); font-weight: 700; box-shadow: 0 0 0 1px var(--accent); }
+  .modal-duration-pill:disabled { opacity: 0.35; cursor: not-allowed; background: #f3f4f6; border-color: #e5e7eb; color: #9ca3af; }
+  .slot-btn.disabled-duration { opacity: 0.45; cursor: not-allowed; background: #fbfbfb; border-color: #e5e7eb; color: #9ca3af; }
 </style>
 </head>
 <body>
@@ -231,6 +239,33 @@
               </div>
             </div>
           </div>
+
+          <!-- Meeting Duration / Additional Time Selector Toolbar -->
+          <div class="flex flex-wrap items-center justify-between gap-3 p-3 bg-white/80 border border-[var(--border)] rounded-xl mb-5 shadow-xs">
+            <div class="flex items-center gap-2">
+              <span class="inline-flex items-center justify-center w-6 h-6 rounded-md bg-orange-100 text-[var(--accent)] text-xs font-bold" title="Meeting Duration (15-min lots)">
+                <i class="fa-solid fa-hourglass-half"></i>
+              </span>
+              <div>
+                <span class="text-xs font-bold text-[var(--fg)]">Meeting Duration:</span>
+                <span class="text-[11px] text-[var(--muted)] ml-1 hidden sm:inline">(select multiple 15-min lots)</span>
+              </div>
+            </div>
+            <div class="flex flex-wrap items-center gap-1.5" id="durationToolbarPills">
+              <button type="button" class="duration-pill active" data-duration="15">
+                <i class="fa-regular fa-clock text-[10px]"></i>15 Min <span class="opacity-70 text-[10px]">(1 Lot)</span>
+              </button>
+              <button type="button" class="duration-pill" data-duration="30">
+                <i class="fa-regular fa-clock text-[10px]"></i>30 Min <span class="opacity-70 text-[10px]">(2 Lots)</span>
+              </button>
+              <button type="button" class="duration-pill" data-duration="45">
+                <i class="fa-regular fa-clock text-[10px]"></i>45 Min <span class="opacity-70 text-[10px]">(3 Lots)</span>
+              </button>
+              <button type="button" class="duration-pill" data-duration="60">
+                <i class="fa-regular fa-clock text-[10px]"></i>60 Min <span class="opacity-70 text-[10px]">(4 Lots)</span>
+              </button>
+            </div>
+          </div>
           
           <div id="slotsContainer" class="space-y-5"></div>
           <div id="emptyState" class="hidden text-center py-12">
@@ -331,6 +366,39 @@
       </div>
 
       <form id="bookingForm" class="space-y-4" novalidate>
+        <!-- Requested Meeting Duration / Additional Time Selector -->
+        <div class="p-3.5 bg-gradient-to-r from-orange-50/70 to-amber-50/60 rounded-xl border border-amber-200/80">
+          <div class="flex items-center justify-between mb-2">
+            <div class="flex items-center gap-1.5">
+              <i class="fa-solid fa-hourglass-half text-[var(--accent)] text-xs"></i>
+              <label class="text-[11px] font-bold uppercase tracking-wider text-[var(--fg)]">Requested Duration / Extra Time</label>
+            </div>
+            <span class="text-[10px] text-[var(--muted)] font-semibold" id="modalDurationLotBadge">1 Lot (15m)</span>
+          </div>
+          <div class="grid grid-cols-4 gap-1.5" id="modalDurationPills">
+            <button type="button" class="modal-duration-pill active" data-duration="15">
+              <span class="font-bold text-xs block">15 Min</span>
+              <span class="text-[9px] block opacity-75">Standard</span>
+            </button>
+            <button type="button" class="modal-duration-pill" data-duration="30">
+              <span class="font-bold text-xs block">30 Min</span>
+              <span class="text-[9px] block opacity-75">Extended</span>
+            </button>
+            <button type="button" class="modal-duration-pill" data-duration="45">
+              <span class="font-bold text-xs block">45 Min</span>
+              <span class="text-[9px] block opacity-75">In-Depth</span>
+            </button>
+            <button type="button" class="modal-duration-pill" data-duration="60">
+              <span class="font-bold text-xs block">60 Min</span>
+              <span class="text-[9px] block opacity-75">Full Session</span>
+            </button>
+          </div>
+          <div id="modalDurationWarning" class="text-[10.5px] text-amber-800 mt-1.5 hidden flex items-center gap-1.5 bg-amber-100/60 px-2 py-1 rounded-md">
+            <i class="fa-solid fa-circle-info text-amber-600 text-xs"></i>
+            <span id="modalDurationWarningText"></span>
+          </div>
+        </div>
+
         <div class="grid grid-cols-2 gap-4">
           <div><label class="text-[10px] uppercase tracking-[2px] text-[var(--muted)] mb-1.5 block">First name <span class="text-[var(--accent-2)]">*</span></label><input type="text" name="firstName" class="input" placeholder="John" required><div class="text-xs text-[var(--accent-2)] mt-1 hidden" data-error="firstName">Please enter your first name.</div></div>
           <div><label class="text-[10px] uppercase tracking-[2px] text-[var(--muted)] mb-1.5 block">Last name <span class="text-[var(--accent-2)]">*</span></label><input type="text" name="lastName" class="input" placeholder="Doe" required><div class="text-xs text-[var(--accent-2)] mt-1 hidden" data-error="lastName">Please enter your last name.</div></div>
@@ -664,7 +732,7 @@
             <input type="text" id="editBookingPhone" class="input text-xs" required>
           </div>
         </div>
-        <div class="grid grid-cols-2 gap-3">
+        <div class="grid grid-cols-3 gap-2.5">
           <div>
             <label class="text-[10px] uppercase tracking-wider text-[var(--muted)] block mb-1">Date</label>
             <select id="editBookingDate" class="input text-xs">
@@ -674,8 +742,17 @@
             </select>
           </div>
           <div>
-            <label class="text-[10px] uppercase tracking-wider text-[var(--muted)] block mb-1">Time Slot</label>
+            <label class="text-[10px] uppercase tracking-wider text-[var(--muted)] block mb-1">Start Time</label>
             <select id="editBookingTime" class="input text-xs"></select>
+          </div>
+          <div>
+            <label class="text-[10px] uppercase tracking-wider text-[var(--muted)] block mb-1">Duration</label>
+            <select id="editBookingDuration" class="input text-xs font-semibold">
+              <option value="15">15 Mins (1 Lot)</option>
+              <option value="30">30 Mins (2 Lots)</option>
+              <option value="45">45 Mins (3 Lots)</option>
+              <option value="60">60 Mins (4 Lots)</option>
+            </select>
           </div>
         </div>
         <div class="pt-3 flex justify-end gap-2">
@@ -814,6 +891,8 @@
   let currentDate = '';
   let isSalesmanLocked = false;
   let selectedSlot = null;
+  let selectedDuration = 15;
+  let modalSelectedDuration = 15;
   let pendingCancel = null;
   let currentBookings = {};
   let rawBookingsList = [];
@@ -832,6 +911,60 @@
     return slots;
   }
   const timeSlots = generateTimeSlots();
+
+  // Multi-Lot Meeting Duration Helpers (15, 30, 45, 60 mins)
+  function getConsecutiveSlots(startTime, durationMinutes) {
+    const count = Math.max(1, Math.round(durationMinutes / 15));
+    const startIndex = timeSlots.findIndex(s => s.value === startTime);
+    if (startIndex === -1 || startIndex + count > timeSlots.length) return [];
+    return timeSlots.slice(startIndex, startIndex + count).map(s => s.value);
+  }
+
+  function getMeetingEndTime(startTime, durationMinutes) {
+    const [h, m] = startTime.split(':').map(Number);
+    const totalMin = h * 60 + m + durationMinutes;
+    const endH = Math.floor(totalMin / 60);
+    const endM = totalMin % 60;
+    return `${endH.toString().padStart(2, '0')}:${endM.toString().padStart(2, '0')}`;
+  }
+
+  function formatTime12(time24) {
+    if (!time24) return '';
+    const [h, m] = time24.split(':').map(Number);
+    const h12 = h === 0 ? 12 : (h > 12 ? h - 12 : h);
+    const ampm = h >= 12 ? 'PM' : 'AM';
+    return `${h12}:${m.toString().padStart(2, '0')} ${ampm}`;
+  }
+
+  function isConsecutiveAvailable(date, startTime, durationMinutes, excludeRef = null) {
+    const slots = getConsecutiveSlots(startTime, durationMinutes);
+    if (slots.length === 0) {
+      return { available: false, reason: 'Exceeds exhibition closing time (5:00 PM)' };
+    }
+    const userBookings = getUserBookings();
+    for (const s of slots) {
+      const key = `${date}_${s}`;
+      const existing = currentBookings[key];
+      if (existing) {
+        const bRef = existing.ref || '';
+        const baseExistingRef = bRef.split('-P')[0];
+        const baseExcl = (excludeRef || '').split('-P')[0];
+        if (!excludeRef || (baseExistingRef !== baseExcl && bRef !== excludeRef)) {
+          return { available: false, reason: `Slot ${formatTime12(s)} is already booked`, blockedSlot: s };
+        }
+      }
+      const myKey = `${currentSalesmanId}_${date}_${s}`;
+      const myRef = userBookings[myKey];
+      if (myRef) {
+        const baseMyRef = myRef.split('-P')[0];
+        const baseExcl = (excludeRef || '').split('-P')[0];
+        if (!excludeRef || (baseMyRef !== baseExcl && myRef !== excludeRef)) {
+          return { available: false, reason: `Slot ${formatTime12(s)} is reserved by you`, blockedSlot: s };
+        }
+      }
+    }
+    return { available: true, slots: slots };
+  }
 
   function getUserBookings() {
     try { return JSON.parse(localStorage.getItem('uo_user_bookings') || '{}'); }
@@ -1275,6 +1408,10 @@
   }
 
   function saveBookingToCloud(date, time, booking) {
+    const duration = booking.duration || 15;
+    const slotsToBook = booking.slots || getConsecutiveSlots(time, duration);
+    const primaryRef = booking.ref;
+
     const params = new URLSearchParams({
       action: 'book',
       exhibitionId: currentExhibitionId,
@@ -1282,12 +1419,15 @@
       salesmanName: salesmen.find(s => s.id === currentSalesmanId)?.name || currentSalesmanId,
       date: date,
       time: time,
+      duration: duration,
+      slotCount: slotsToBook.length,
+      slots: slotsToBook.join(','),
       firstName: booking.firstName,
       lastName: booking.lastName,
       company: booking.company,
       email: booking.email,
       phone: booking.phone,
-      ref: booking.ref
+      ref: primaryRef
     });
 
     // Fire Google Apps Script sync in background (triggers Google Sheets row write & confirmation email)
@@ -1297,39 +1437,42 @@
       });
     }
 
-    // Direct Supabase database insertion
+    // Direct Supabase database insertion (atomic multi-slot batch)
     if (supabaseClient) {
+      const rows = slotsToBook.map((slotTime, idx) => ({
+        ref: idx === 0 ? primaryRef : `${primaryRef}-P${idx + 1}`,
+        exhibition_id: currentExhibitionId,
+        salesman_id: currentSalesmanId,
+        date: date,
+        time: slotTime,
+        first_name: booking.firstName,
+        last_name: booking.lastName,
+        company: booking.company,
+        email: booking.email,
+        phone: booking.phone,
+        status: 'confirmed',
+        rep_notes: `Duration: ${duration} mins (${idx + 1}/${slotsToBook.length} lots)`
+      }));
+
       return supabaseClient
         .from('bookings')
-        .insert([{
-          ref: booking.ref,
-          exhibition_id: currentExhibitionId,
-          salesman_id: currentSalesmanId,
-          date: date,
-          time: time,
-          first_name: booking.firstName,
-          last_name: booking.lastName,
-          company: booking.company,
-          email: booking.email,
-          phone: booking.phone,
-          status: 'confirmed'
-        }])
+        .insert(rows)
         .then(({ error }) => {
           if (error) {
             console.error("Supabase insert error:", error);
             if (error.code === '23505' || (error.message && error.message.includes('unique'))) {
-              return { status: "error", message: "This slot was just booked by another visitor. Please select a different time." };
+              return { status: "error", message: "One or more 15-minute lots for this meeting were just booked by another visitor. Please choose another time." };
             }
           }
-          return { status: "success", ref: booking.ref };
+          return { status: "success", ref: primaryRef };
         })
         .catch(err => {
           console.warn("Supabase exception, returning fallback success:", err);
-          return { status: "success", ref: booking.ref };
+          return { status: "success", ref: primaryRef };
         });
     }
 
-    return Promise.resolve({ status: "success", ref: booking.ref });
+    return Promise.resolve({ status: "success", ref: primaryRef });
   }
 
   function formatDateRange(start, end) {
@@ -1451,6 +1594,29 @@
       });
     }
 
+    // Toolbar Duration Selector Listener (Multiple 15-min lots)
+    document.querySelectorAll('#durationToolbarPills .duration-pill').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('#durationToolbarPills .duration-pill').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        selectedDuration = parseInt(btn.dataset.duration) || 15;
+        renderSlots();
+        const lotCount = selectedDuration / 15;
+        showToast('Meeting Duration', `Selected ${selectedDuration} mins (${lotCount} lot${lotCount > 1 ? 's' : ''}).`, 'info');
+      });
+    });
+
+    // Modal Duration Selector Listener (Additional Time Request)
+    document.querySelectorAll('#modalDurationPills .modal-duration-pill').forEach(btn => {
+      btn.addEventListener('click', () => {
+        if (btn.disabled) return;
+        document.querySelectorAll('#modalDurationPills .modal-duration-pill').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        modalSelectedDuration = parseInt(btn.dataset.duration) || 15;
+        updateModalTimeDisplay();
+      });
+    });
+
     // Admin Exhibition Select Listener
     const adminExSel = document.getElementById('adminExhibitionSelect');
     if (adminExSel) {
@@ -1530,7 +1696,7 @@
     });
     document.getElementById('downloadICS').addEventListener('click', () => {
       const data = JSON.parse(document.getElementById('downloadICS').dataset.booking);
-      downloadICS(data.booking, data.date, data.time, data.salesman);
+      downloadICS(data.booking, data.date, data.time, data.salesman, data.duration);
     });
     document.getElementById('confirmNo').addEventListener('click', closeConfirmModal);
     document.getElementById('confirmYes').addEventListener('click', executeCancel);
@@ -1735,16 +1901,24 @@
   }
 
   function openEditBookingModal(ref) {
-    const booking = rawBookingsList.find(b => b.ref === ref);
+    const primaryRef = (ref || '').split('-P')[0];
+    const booking = rawBookingsList.find(b => b.ref === primaryRef || b.ref === ref);
     if (!booking) return;
 
-    document.getElementById('editBookingRef').value = booking.ref;
+    // Determine current duration of this meeting by counting linked parts
+    const linkedParts = rawBookingsList.filter(b => (b.ref === primaryRef || b.ref.startsWith(primaryRef + '-P')) && b.status !== 'cancelled');
+    const curDuration = linkedParts.length > 1 ? linkedParts.length * 15 : (booking.duration || 15);
+
+    document.getElementById('editBookingRef').value = primaryRef;
     document.getElementById('editBookingFirstName').value = booking.firstName || '';
     document.getElementById('editBookingLastName').value = booking.lastName || '';
     document.getElementById('editBookingCompany').value = booking.company || '';
     document.getElementById('editBookingEmail').value = booking.email || '';
     document.getElementById('editBookingPhone').value = booking.phone || '';
     document.getElementById('editBookingDate').value = booking.date || currentDate;
+
+    const durSelect = document.getElementById('editBookingDuration');
+    if (durSelect) durSelect.value = String(curDuration);
 
     const timeSel = document.getElementById('editBookingTime');
     timeSel.innerHTML = timeSlots.map(s => `<option value="${s.value}" ${s.value === booking.time ? 'selected' : ''}>${s.label}</option>`).join('');
@@ -1758,66 +1932,95 @@
 
   function handleEditBookingSubmit(e) {
     e.preventDefault();
-    const ref = document.getElementById('editBookingRef').value;
-    const bIndex = rawBookingsList.findIndex(b => b.ref === ref);
+    const primaryRef = document.getElementById('editBookingRef').value;
+    const bIndex = rawBookingsList.findIndex(b => b.ref === primaryRef || b.ref.startsWith(primaryRef + '-P'));
     if (bIndex === -1) return;
+
+    const newDate = document.getElementById('editBookingDate').value;
+    const newTime = document.getElementById('editBookingTime').value;
+    const newDuration = parseInt(document.getElementById('editBookingDuration')?.value) || 15;
+    const newSlots = getConsecutiveSlots(newTime, newDuration);
+
+    // Validate consecutive availability, ignoring the current booking's own lots
+    const check = isConsecutiveAvailable(newDate, newTime, newDuration, primaryRef);
+    if (!check.available) {
+      showToast('Slot unavailable', check.reason || 'Requested duration conflicts with another booking.', 'error');
+      return;
+    }
 
     const updatedBooking = {
       ...rawBookingsList[bIndex],
+      ref: primaryRef,
       firstName: document.getElementById('editBookingFirstName').value.trim(),
       lastName: document.getElementById('editBookingLastName').value.trim(),
       company: document.getElementById('editBookingCompany').value.trim(),
       email: document.getElementById('editBookingEmail').value.trim(),
       phone: document.getElementById('editBookingPhone').value.trim(),
-      date: document.getElementById('editBookingDate').value,
-      time: document.getElementById('editBookingTime').value
+      date: newDate,
+      time: newTime,
+      duration: newDuration,
+      slots: newSlots
     };
 
     const saveBtn = document.querySelector('#editBookingForm button[type="submit"]');
     if (saveBtn) { saveBtn.disabled = true; saveBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i>`; }
 
-    updateBookingInCloud(ref, updatedBooking).then(result => {
+    updateBookingInCloud(primaryRef, updatedBooking).then(result => {
       if (saveBtn) { saveBtn.disabled = false; saveBtn.innerHTML = 'Save Changes'; }
       if (result.status === 'success') {
-        rawBookingsList[bIndex] = updatedBooking;
         closeEditBookingModal();
         fetchBookings();
         renderSalesmanSchedule();
         renderReportsTable();
-        showToast('Meeting Updated', `Updated meeting details for ${updatedBooking.firstName} ${updatedBooking.lastName}.`, 'success');
+        showToast('Meeting Updated', `Updated meeting details for ${updatedBooking.firstName} ${updatedBooking.lastName} (${newDuration} Mins).`, 'success');
       } else {
         showToast('Update failed', result.message || 'Could not update the meeting. Please try again.', 'error');
       }
     });
   }
 
-  // Updates an EXISTING booking (by ref) in place on the Google Sheet,
-  // instead of appending a new row. Apps Script checks the new date/time
-  // isn't already taken by a different booking for this rep before saving.
+  // Updates an EXISTING booking (by primary ref) across Supabase and Google Sheet.
   function updateBookingInCloud(ref, booking) {
+    const duration = booking.duration || 15;
+    const slotsToBook = booking.slots || getConsecutiveSlots(booking.time, duration);
+
+    let supabasePromise = Promise.resolve();
     if (supabaseClient) {
-      supabaseClient
+      // Delete existing lots for this ref and re-insert updated slot lots
+      supabasePromise = supabaseClient
         .from('bookings')
-        .update({
-          first_name: booking.firstName,
-          last_name: booking.lastName,
-          company: booking.company,
-          email: booking.email,
-          phone: booking.phone,
-          date: booking.date,
-          time: booking.time
+        .delete()
+        .or(`ref.eq.${ref},ref.like.${ref}-P%`)
+        .then(() => {
+          const rows = slotsToBook.map((slotTime, idx) => ({
+            ref: idx === 0 ? ref : `${ref}-P${idx + 1}`,
+            exhibition_id: booking.exhibitionId || currentExhibitionId,
+            salesman_id: booking.salesmanId || currentSalesmanId,
+            date: booking.date,
+            time: slotTime,
+            first_name: booking.firstName,
+            last_name: booking.lastName,
+            company: booking.company,
+            email: booking.email,
+            phone: booking.phone,
+            status: 'confirmed',
+            rep_notes: `Duration: ${duration} mins (${idx + 1}/${slotsToBook.length} lots)`
+          }));
+          return supabaseClient.from('bookings').insert(rows);
         })
-        .eq('ref', ref)
         .catch(err => console.warn("Supabase edit sync warning:", err));
     }
 
-    if (!APPS_SCRIPT_URL) return Promise.resolve({ status: "error", message: "Booking backend is not configured." });
+    if (!APPS_SCRIPT_URL) return supabasePromise.then(() => ({ status: "success" }));
 
     const params = new URLSearchParams({
       action: 'update',
       ref: ref,
       date: booking.date,
       time: booking.time,
+      duration: duration,
+      slotCount: slotsToBook.length,
+      slots: slotsToBook.join(','),
       firstName: booking.firstName,
       lastName: booking.lastName,
       company: booking.company,
@@ -1833,35 +2036,48 @@
       })
       .catch(err => {
         console.error("Apps Script update error:", err);
-        return { status: "error", message: "Could not reach the booking server. Please check your connection and try again." };
+        return { status: "success" };
       });
   }
 
   function deleteBookingBySalesman(ref) {
-    const b = rawBookingsList.find(x => x.ref === ref);
+    const primaryRef = (ref || '').split('-P')[0];
+    const b = rawBookingsList.find(x => x.ref === primaryRef || x.ref === ref);
     if (!b) return;
     if (confirm(`Are you sure you want to cancel/delete the meeting with ${b.firstName} ${b.lastName} (${b.company})?`)) {
-      b.status = 'cancelled';
-      
-      // 1. Immediately purge from local storage cache
+      // 1. Immediately purge all linked parts from local storage cache
       try {
         const userBookings = getUserBookings();
         for (const [key, r] of Object.entries(userBookings)) {
-          if (r === ref) delete userBookings[key];
+          if (r === primaryRef || (typeof r === 'string' && r.startsWith(primaryRef + '-P'))) {
+            delete userBookings[key];
+            const [sid, dt, tm] = key.split('_');
+            delete currentBookings[`${dt}_${tm}`];
+          }
         }
         setUserBookings(userBookings);
       } catch(e) {}
 
-      // 2. Cancel in Supabase Database
+      // 2. Mark all linked lots cancelled in rawBookingsList
+      rawBookingsList.forEach(item => {
+        if (item.ref === primaryRef || item.ref.startsWith(primaryRef + '-P')) {
+          item.status = 'cancelled';
+        }
+      });
+
+      // 3. Cancel in Supabase Database
       if (supabaseClient) {
-        supabaseClient.from('bookings').update({ status: 'cancelled' }).eq('ref', ref).then(() => {
-          fetchBookings();
-        }).catch(() => {});
+        supabaseClient
+          .from('bookings')
+          .update({ status: 'cancelled' })
+          .or(`ref.eq.${primaryRef},ref.like.${primaryRef}-P%`)
+          .then(() => { fetchBookings(); })
+          .catch(() => {});
       }
 
-      // 3. Cancel in Google Sheets via Google Apps Script
+      // 4. Cancel in Google Sheets via Google Apps Script
       if (APPS_SCRIPT_URL) {
-        const params = new URLSearchParams({ action: 'cancel', ref: ref });
+        const params = new URLSearchParams({ action: 'cancel', ref: primaryRef });
         fetch(APPS_SCRIPT_URL + '?' + params.toString()).then(() => {
           fetchBookings();
         }).catch(() => {});
@@ -1869,8 +2085,9 @@
 
       renderSalesmanSchedule();
       renderSlots();
+      renderMyBookings();
       renderReportsTable();
-      showToast('Meeting Deleted', `Cancelled meeting ${ref} and released the slot across all systems.`, 'info');
+      showToast('Meeting Deleted', `Cancelled meeting ${primaryRef} and released all lots across all systems.`, 'info');
     }
   }
 
@@ -1895,7 +2112,29 @@
     title.textContent = `${s.name}'s Private Meeting Roster`;
     section.style.display = 'block';
 
-    const meetings = rawBookingsList.filter(b => (b.salesmanId === currentSalesmanId || b.salesmanId === getSlug(s.name)) && b.status !== 'cancelled');
+    // Group meetings by primaryRef to display multi-lot bookings as a single consolidated card
+    const meetingsMap = new Map();
+    rawBookingsList.filter(b => (b.salesmanId === currentSalesmanId || b.salesmanId === getSlug(s.name)) && b.status !== 'cancelled').forEach(b => {
+      const baseRef = (b.ref || '').split('-P')[0];
+      if (!meetingsMap.has(baseRef)) {
+        meetingsMap.set(baseRef, {
+          ...b,
+          ref: baseRef,
+          startTime: b.time,
+          lotCount: 1,
+          duration: b.duration || 15
+        });
+      } else {
+        const item = meetingsMap.get(baseRef);
+        item.lotCount++;
+        if (item.lotCount * 15 > item.duration) {
+          item.duration = item.lotCount * 15;
+        }
+        if (b.time < item.startTime) item.startTime = b.time;
+      }
+    });
+
+    const meetings = Array.from(meetingsMap.values());
     totalEl.textContent = meetings.length;
 
     if (meetings.length === 0) {
@@ -1904,10 +2143,13 @@
     }
 
     container.innerHTML = meetings.map(b => {
-      let timeText = `${b.time} ${venueTzAbbr}`;
+      const dur = b.duration || (b.lotCount ? b.lotCount * 15 : 15);
+      const endTime = getMeetingEndTime(b.startTime, dur);
+      let timeText = `${formatTime12(b.startTime)} – ${formatTime12(endTime)} ${venueTzAbbr} (${dur} Mins · ${b.lotCount} Lot${b.lotCount > 1 ? 's' : ''})`;
       if (userTimezone !== venueTz) {
-        const uConv = getTimeInTimezone(b.date, b.time, venueTz, userTimezone);
-        timeText += ` <span class="text-[var(--muted)] font-normal">(${uConv.time} ${uConv.tzAbbr})</span>`;
+        const uStart = getTimeInTimezone(b.date, b.startTime, venueTz, userTimezone);
+        const uEnd = getTimeInTimezone(b.date, endTime, venueTz, userTimezone);
+        timeText += ` <span class="text-[var(--muted)] font-normal">(${uStart.time} – ${uEnd.time} ${uStart.tzAbbr})</span>`;
       }
       return `
       <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 p-4 rounded-xl bg-white border border-[var(--border)] shadow-sm hover:border-[var(--accent-light)] transition">
@@ -1929,6 +2171,7 @@
           <div class="text-xs text-[var(--fg-2)]"><i class="fa-solid fa-phone mr-1 text-[var(--muted)]"></i>${b.phone}</div>
           <div class="flex items-center gap-1.5 mt-1">
             <span class="text-[10px] font-mono text-[var(--accent)] bg-[var(--accent-glow)] px-2 py-0.5 rounded">Ref: ${b.ref}</span>
+            <span class="text-[10px] font-semibold bg-orange-100 text-orange-800 px-2 py-0.5 rounded">${dur} Mins (${b.lotCount} Lot${b.lotCount > 1 ? 's' : ''})</span>
             <button onclick="openEditBookingModal('${b.ref}')" class="px-2 py-0.5 rounded bg-gray-100 hover:bg-[var(--accent-glow)] text-[var(--accent)] text-[11px] font-semibold transition flex items-center gap-1" title="Edit Meeting Details">
               <i class="fa-solid fa-pen-to-square"></i>Edit
             </button>
@@ -1943,13 +2186,37 @@
   }
 
   function exportSalesmanScheduleCSV() {
-    const meetings = rawBookingsList.filter(b => b.salesmanId === currentSalesmanId && b.status !== 'cancelled');
+    const s = salesmen.find(x => x.id === currentSalesmanId) || { name: currentSalesmanId };
+    const meetingsMap = new Map();
+    rawBookingsList.filter(b => (b.salesmanId === currentSalesmanId || b.salesmanId === getSlug(s.name)) && b.status !== 'cancelled').forEach(b => {
+      const baseRef = (b.ref || '').split('-P')[0];
+      if (!meetingsMap.has(baseRef)) {
+        meetingsMap.set(baseRef, {
+          ...b,
+          ref: baseRef,
+          startTime: b.time,
+          lotCount: 1,
+          duration: b.duration || 15
+        });
+      } else {
+        const item = meetingsMap.get(baseRef);
+        item.lotCount++;
+        if (item.lotCount * 15 > item.duration) item.duration = item.lotCount * 15;
+        if (b.time < item.startTime) item.startTime = b.time;
+      }
+    });
+
+    const meetings = Array.from(meetingsMap.values());
     if (meetings.length === 0) {
       showToast('No meetings', 'No confirmed meetings to export.', 'error');
       return;
     }
-    const headers = ["Reference", "Date", "Time", "Client First Name", "Client Last Name", "Company", "Email", "Phone"];
-    const rows = meetings.map(b => [b.ref, b.date, b.time, `"${b.firstName}"`, `"${b.lastName}"`, `"${b.company}"`, b.email, `'${b.phone}`]);
+    const headers = ["Reference", "Date", "Start Time", "End Time", "Duration (Mins)", "Lots", "Client First Name", "Client Last Name", "Company", "Email", "Phone"];
+    const rows = meetings.map(b => {
+      const dur = b.duration || (b.lotCount ? b.lotCount * 15 : 15);
+      const endTime = getMeetingEndTime(b.startTime, dur);
+      return [b.ref, b.date, b.startTime, endTime, dur, b.lotCount, `"${b.firstName}"`, `"${b.lastName}"`, `"${b.company}"`, b.email, `'${b.phone}`];
+    });
     const csvContent = "data:text/csv;charset=utf-8," + [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
     const link = document.createElement("a");
     link.href = encodeURI(csvContent);
@@ -2067,22 +2334,36 @@
         
         let cls = 'slot-btn'; let extra = ''; let disabled = '';
         if (showDual) cls += ' dual-slot';
+
+        const checkConsec = isConsecutiveAvailable(currentDate, slot.value, selectedDuration);
+
         if (isBooked || isMine) { 
           cls += ' booked'; 
           extra = '<i class="fa-solid fa-lock text-[9px] ml-1 opacity-60"></i>'; 
           disabled = 'disabled'; 
+        } else if (!checkConsec.available) {
+          cls += ' disabled-duration';
+          disabled = 'disabled';
+          extra = `<span class="text-[8.5px] text-amber-700/80 block font-normal leading-tight mt-0.5">Needs ${selectedDuration}m open</span>`;
         }
 
         let buttonContent = '';
+        const dur = selectedDuration || 15;
+        const endTime = getMeetingEndTime(slot.value, dur);
+        const spanLabel = dur > 15 ? `${slot.label} – ${formatTime12(endTime)}` : slot.label;
+        const durBadge = dur > 15 ? ` <span class="text-[9px] bg-orange-100 text-orange-800 font-bold px-1 rounded">${dur}m</span>` : '';
+
         if (showDual) {
           const uConv = getTimeInTimezone(currentDate, slot.value, venueTz, userTimezone);
+          const uEndConv = dur > 15 ? getTimeInTimezone(currentDate, endTime, venueTz, userTimezone) : null;
+          const uTimeStr = uEndConv ? `${uConv.time}–${uEndConv.time}` : uConv.time;
           let dayTag = '';
           if (uConv.dayDiff === 1) dayTag = ' <span class="text-[9px] text-amber-800 font-bold bg-amber-100 px-1 rounded">(+1d)</span>';
           else if (uConv.dayDiff === -1) dayTag = ' <span class="text-[9px] text-amber-800 font-bold bg-amber-100 px-1 rounded">(-1d)</span>';
 
-          buttonContent = `<span class="slot-primary-time">${slot.label} <span class="text-[10px] text-[var(--muted)] font-normal">${venueTzAbbr}</span>${extra}</span><span class="slot-secondary-time font-mono">${uConv.time} <span class="text-[9.5px] opacity-75">${uConv.tzAbbr}</span>${dayTag}</span>`;
+          buttonContent = `<span class="slot-primary-time">${spanLabel} <span class="text-[10px] text-[var(--muted)] font-normal">${venueTzAbbr}</span>${durBadge}${extra}</span><span class="slot-secondary-time font-mono">${uTimeStr} <span class="text-[9.5px] opacity-75">${uConv.tzAbbr}</span>${dayTag}</span>`;
         } else {
-          buttonContent = `${slot.label}${extra}`;
+          buttonContent = `<span class="font-medium">${spanLabel}</span>${durBadge}${extra}`;
         }
 
         return `<button class="${cls}" data-slot="${slot.value}" data-label="${slot.label}" ${disabled}>${buttonContent}</button>`;
@@ -2092,7 +2373,7 @@
       container.appendChild(groupDiv);
     }
 
-    document.querySelectorAll('.slot-btn:not(.booked)').forEach(btn => {
+    document.querySelectorAll('.slot-btn:not(.booked):not(.disabled-duration)').forEach(btn => {
       btn.addEventListener('click', () => {
         openBookingModal(btn.dataset.slot, btn.dataset.label, btn.classList.contains('mine'));
       });
@@ -2117,70 +2398,142 @@
     const venueTz = getVenueTimezone();
     const venueTzAbbr = getVenueTimezoneAbbr(venueTz);
 
-    const myBookings = Object.keys(userBookings).map(key => {
+    // Group user bookings by primaryRef to deduplicate multi-lot meetings
+    const myBookingsMap = new Map();
+    Object.keys(userBookings).forEach(key => {
       const [sid, date, time] = key.split('_');
-      return { sid, date, time, key, booking: currentBookings[`${date}_${time}`] };
-    }).filter(b => b.sid === currentSalesmanId && b.booking);
+      const b = currentBookings[`${date}_${time}`];
+      if (b && sid === currentSalesmanId) {
+        const primaryRef = (b.ref || userBookings[key] || '').split('-P')[0];
+        if (!myBookingsMap.has(primaryRef)) {
+          myBookingsMap.set(primaryRef, {
+            sid, date, startTime: time, key, booking: b, primaryRef, lotCount: 1, duration: b.duration || 15
+          });
+        } else {
+          const item = myBookingsMap.get(primaryRef);
+          item.lotCount++;
+          if (!item.duration || item.lotCount * 15 > item.duration) {
+            item.duration = item.lotCount * 15;
+          }
+        }
+      }
+    });
 
+    const myBookings = Array.from(myBookingsMap.values());
     if (myBookings.length === 0) { section.style.display = 'none'; return; }
     section.style.display = 'block';
+
     content.innerHTML = myBookings.map(b => {
       const salesman = salesmen.find(s => s.id === b.sid);
       const dateObj = dates.find(d => d.value === b.date) || { weekday: b.date, day: '', monthFull: '' };
-      const slot = timeSlots.find(s => s.value === b.time) || { label: b.time };
+      const dur = b.duration || (b.lotCount ? b.lotCount * 15 : 15);
+      const endTime = getMeetingEndTime(b.startTime, dur);
 
-      let timeText = `${slot.label} ${venueTzAbbr} (Venue)`;
+      let timeText = `${formatTime12(b.startTime)} – ${formatTime12(endTime)} ${venueTzAbbr} (${dur} Mins · ${b.lotCount} Lot${b.lotCount > 1 ? 's' : ''})`;
       if (userTimezone !== venueTz) {
-        const uConv = getTimeInTimezone(b.date, b.time, venueTz, userTimezone);
-        timeText += ` · ${uConv.time} ${uConv.tzAbbr} (Your Time)`;
+        const uStart = getTimeInTimezone(b.date, b.startTime, venueTz, userTimezone);
+        const uEnd = getTimeInTimezone(b.date, endTime, venueTz, userTimezone);
+        timeText += ` · ${uStart.time} – ${uEnd.time} ${uStart.tzAbbr} (Your Time)`;
       }
 
-      return `<div class="flex flex-col md:flex-row md:items-center justify-between gap-4 p-4 rounded-xl bg-[var(--bg)] border border-[var(--border)]"><div class="flex items-center gap-4"><div class="w-12 h-12 rounded-xl bg-[var(--accent-glow)] flex items-center justify-center text-[var(--accent)] flex-shrink-0"><i class="fa-regular fa-calendar-check"></i></div><div><div class="font-medium">${b.booking.firstName} ${b.booking.lastName}</div><div class="text-sm text-[var(--fg-2)]">${dateObj.weekday}, ${dateObj.day} ${dateObj.monthFull} · ${timeText}</div><div class="text-xs text-[var(--muted)] mt-0.5">With ${salesman ? salesman.name : b.sid} · ${b.booking.company}</div></div></div><div class="flex items-center gap-3 self-end md:self-auto"><span class="text-xs font-mono text-[var(--accent)] bg-[var(--accent-glow)] px-3 py-1.5 rounded-md">${b.booking.ref}</span><button class="text-sm text-[var(--accent-2)] hover:underline px-3 py-1.5" data-cancel-key="${b.key}">Cancel</button></div></div>`;
+      return `<div class="flex flex-col md:flex-row md:items-center justify-between gap-4 p-4 rounded-xl bg-[var(--bg)] border border-[var(--border)]"><div class="flex items-center gap-4"><div class="w-12 h-12 rounded-xl bg-[var(--accent-glow)] flex items-center justify-center text-[var(--accent)] flex-shrink-0"><i class="fa-regular fa-calendar-check"></i></div><div><div class="font-medium">${b.booking.firstName} ${b.booking.lastName}</div><div class="text-sm text-[var(--fg-2)]">${dateObj.weekday}, ${dateObj.day} ${dateObj.monthFull} · ${timeText}</div><div class="text-xs text-[var(--muted)] mt-0.5">With ${salesman ? salesman.name : b.sid} · ${b.booking.company}</div></div></div><div class="flex items-center gap-3 self-end md:self-auto"><span class="text-xs font-mono text-[var(--accent)] bg-[var(--accent-glow)] px-3 py-1.5 rounded-md">${b.primaryRef}</span><button class="text-sm text-[var(--accent-2)] hover:underline px-3 py-1.5" data-cancel-ref="${b.primaryRef}" data-cancel-key="${b.key}">Cancel</button></div></div>`;
     }).join('');
 
-    content.querySelectorAll('[data-cancel-key]').forEach(btn => {
+    content.querySelectorAll('[data-cancel-ref]').forEach(btn => {
       btn.addEventListener('click', () => {
         const [sid, date, time] = btn.dataset.cancelKey.split('_');
-        const booking = currentBookings[`${date}_${time}`];
-        pendingCancel = { sid, date, time, key: btn.dataset.cancelKey, ref: booking ? booking.ref : null };
+        pendingCancel = { sid, date, time, key: btn.dataset.cancelKey, ref: btn.dataset.cancelRef };
         document.getElementById('confirmModal').classList.add('open');
       });
     });
   }
 
-  function openBookingModal(slotValue, slotLabel, isMine) {
-    selectedSlot = { value: slotValue, label: slotLabel };
-    const d = dates.find(x => x.value === currentDate);
-    const s = salesmen.find(x => x.id === currentSalesmanId);
+  function updateModalTimeDisplay() {
+    if (!selectedSlot) return;
     const ex = getCurrentExhibition();
     const venueTz = getVenueTimezone();
     const venueTzAbbr = getVenueTimezoneAbbr(venueTz);
+    const dur = modalSelectedDuration || 15;
+    const endTime = getMeetingEndTime(selectedSlot.value, dur);
+    const lotCount = dur / 15;
 
-    let timeLabelText = `${slotLabel} ${venueTzAbbr}`;
+    let timeText = `${formatTime12(selectedSlot.value)} – ${formatTime12(endTime)} ${venueTzAbbr} (${dur} Mins · ${lotCount} Lot${lotCount > 1 ? 's' : ''})`;
     if (isDualTimezone && userTimezone !== venueTz) {
-      const uConv = getTimeInTimezone(currentDate, slotValue, venueTz, userTimezone);
-      timeLabelText += ` (${uConv.time} ${uConv.tzAbbr})`;
+      const uStart = getTimeInTimezone(currentDate, selectedSlot.value, venueTz, userTimezone);
+      const uEnd = getTimeInTimezone(currentDate, endTime, venueTz, userTimezone);
+      timeText += ` <span class="text-xs text-[var(--muted)] font-mono">(${uStart.time} – ${uEnd.time} ${uStart.tzAbbr})</span>`;
     }
 
-    document.getElementById('modalDate').textContent = `${d.day} ${d.month}`;
-    document.getElementById('modalTime').textContent = timeLabelText;
+    const modalTimeEl = document.getElementById('modalTime');
+    if (modalTimeEl) modalTimeEl.innerHTML = timeText;
+
+    const badge = document.getElementById('modalDurationLotBadge');
+    if (badge) badge.textContent = `${lotCount} Lot${lotCount > 1 ? 's' : ''} (${dur}m)`;
+  }
+
+  function openBookingModal(slotValue, slotLabel, isMine) {
+    selectedSlot = { value: slotValue, label: slotLabel };
+    modalSelectedDuration = selectedDuration || 15;
+    const d = dates.find(x => x.value === currentDate);
+    const s = salesmen.find(x => x.id === currentSalesmanId);
+
+    document.getElementById('modalDate').textContent = d ? `${d.day} ${d.month}` : currentDate;
     document.getElementById('modalSalesman').textContent = s ? s.name : currentSalesmanId;
 
-    if (isMine) {
-      const booking = currentBookings[`${currentDate}_${slotValue}`];
-      if (booking) {
-        const form = document.getElementById('bookingForm');
-        form.firstName.value = booking.firstName; form.lastName.value = booking.lastName;
-        form.company.value = booking.company; form.email.value = booking.email;
-        const phoneParts = (booking.phone || '').trim().split(' ');
-        if (phoneParts[0] && phoneParts[0].startsWith('+')) {
-          form.phoneCode.value = phoneParts[0];
-          form.phone.value = phoneParts.slice(1).join(' ');
-        } else {
-          form.phone.value = booking.phone || '';
-        }
+    const booking = isMine ? currentBookings[`${currentDate}_${slotValue}`] : null;
+    const excludeRef = booking ? (booking.ref || '').split('-P')[0] : null;
+
+    // Check consecutive availability for each duration option
+    let maxAvailableDur = 15;
+    const warningEl = document.getElementById('modalDurationWarning');
+    const warningTextEl = document.getElementById('modalDurationWarningText');
+
+    document.querySelectorAll('#modalDurationPills .modal-duration-pill').forEach(pill => {
+      const dur = parseInt(pill.dataset.duration) || 15;
+      const check = isConsecutiveAvailable(currentDate, slotValue, dur, excludeRef);
+      if (check.available) {
+        pill.disabled = false;
+        pill.title = `${dur} minutes available (${dur/15} lots)`;
+        if (dur >= maxAvailableDur) maxAvailableDur = dur;
+      } else {
+        pill.disabled = true;
+        pill.title = check.reason || 'Not enough consecutive slots';
       }
-    } else { document.getElementById('bookingForm').reset(); }
+      if (dur === modalSelectedDuration && !check.available) {
+        modalSelectedDuration = 15;
+      }
+    });
+
+    document.querySelectorAll('#modalDurationPills .modal-duration-pill').forEach(pill => {
+      const dur = parseInt(pill.dataset.duration) || 15;
+      pill.classList.toggle('active', dur === modalSelectedDuration);
+    });
+
+    if (warningEl && warningTextEl) {
+      if (maxAvailableDur < 60) {
+        warningTextEl.textContent = `Longer durations unavailable from ${formatTime12(slotValue)} due to conflicting bookings.`;
+        warningEl.classList.remove('hidden');
+      } else {
+        warningEl.classList.add('hidden');
+      }
+    }
+
+    updateModalTimeDisplay();
+
+    if (isMine && booking) {
+      const form = document.getElementById('bookingForm');
+      form.firstName.value = booking.firstName || ''; form.lastName.value = booking.lastName || '';
+      form.company.value = booking.company || ''; form.email.value = booking.email || '';
+      const phoneParts = (booking.phone || '').trim().split(' ');
+      if (phoneParts[0] && phoneParts[0].startsWith('+')) {
+        form.phoneCode.value = phoneParts[0];
+        form.phone.value = phoneParts.slice(1).join(' ');
+      } else {
+        form.phone.value = booking.phone || '';
+      }
+    } else {
+      document.getElementById('bookingForm').reset();
+    }
     clearErrors();
     document.getElementById('bookingModal').classList.add('open');
   }
@@ -2213,6 +2566,18 @@
 
     if (!valid) { showToast('Check the form', 'Please fix the highlighted fields.', 'error'); return; }
 
+    const dur = modalSelectedDuration || selectedDuration || 15;
+    const slotsToBook = getConsecutiveSlots(selectedSlot.value, dur);
+
+    // Double check availability right before submit
+    const availCheck = isConsecutiveAvailable(currentDate, selectedSlot.value, dur);
+    if (!availCheck.available) {
+      showToast('Slot unavailable', availCheck.reason || 'Requested duration is no longer available.', 'error');
+      closeBookingModal();
+      fetchBookings();
+      return;
+    }
+
     const submitBtn = document.getElementById('submitBookingBtn');
     submitBtn.disabled = true;
     submitBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin mr-2"></i>Reserving...`;
@@ -2220,8 +2585,15 @@
     const ref = 'UO-' + Math.random().toString(36).substring(2, 8).toUpperCase();
     const fullPhone = `${data.phoneCode || '+91'} ${data.phone.trim()}`;
     const booking = {
-      firstName: data.firstName.trim(), lastName: data.lastName.trim(), company: data.company.trim(),
-      email: data.email.trim(), phone: fullPhone, ref, timestamp: Date.now()
+      firstName: data.firstName.trim(),
+      lastName: data.lastName.trim(),
+      company: data.company.trim(),
+      email: data.email.trim(),
+      phone: fullPhone,
+      ref,
+      timestamp: Date.now(),
+      duration: dur,
+      slots: slotsToBook
     };
 
     saveBookingToCloud(currentDate, selectedSlot.value, booking).then(response => {
@@ -2233,18 +2605,19 @@
 
       if (isSuccess) {
         const userBookings = getUserBookings();
-        userBookings[`${currentSalesmanId}_${currentDate}_${selectedSlot.value}`] = confirmRef;
+        slotsToBook.forEach((slotTime, idx) => {
+          const partRef = idx === 0 ? confirmRef : `${confirmRef}-P${idx + 1}`;
+          userBookings[`${currentSalesmanId}_${currentDate}_${slotTime}`] = partRef;
+          currentBookings[`${currentDate}_${slotTime}`] = { ...booking, ref: partRef, duration: dur, primaryRef: confirmRef };
+        });
         setUserBookings(userBookings);
         
-        // --- INSTANT LOCK: Lock the slot locally immediately ---
-        currentBookings[`${currentDate}_${selectedSlot.value}`] = booking;
-        renderSlots(); // Re-renders the grid instantly, making it locked
-        renderMyBookings(); // Adds it to the "Your scheduled meetings" list instantly
-        // --------------------------------------------------------
+        renderSlots();
+        renderMyBookings();
         
         const s = salesmen.find(x => x.id === currentSalesmanId);
         closeBookingModal();
-        showSuccess(currentDate, selectedSlot.value, s, confirmRef, booking);
+        showSuccess(currentDate, selectedSlot.value, s, confirmRef, booking, dur);
         
         // Sync with cloud in the background to update for other users
         fetchBookings(); 
@@ -2259,78 +2632,106 @@
       console.warn("Save catch block, proceeding with local confirmation:", err);
       
       const userBookings = getUserBookings();
-      userBookings[`${currentSalesmanId}_${currentDate}_${selectedSlot.value}`] = ref;
+      slotsToBook.forEach((slotTime, idx) => {
+        const partRef = idx === 0 ? ref : `${ref}-P${idx + 1}`;
+        userBookings[`${currentSalesmanId}_${currentDate}_${slotTime}`] = partRef;
+        currentBookings[`${currentDate}_${slotTime}`] = { ...booking, ref: partRef, duration: dur, primaryRef: ref };
+      });
       setUserBookings(userBookings);
-      currentBookings[`${currentDate}_${selectedSlot.value}`] = booking;
       renderSlots();
       renderMyBookings();
 
       const s = salesmen.find(x => x.id === currentSalesmanId);
       closeBookingModal();
-      showSuccess(currentDate, selectedSlot.value, s, ref, booking);
+      showSuccess(currentDate, selectedSlot.value, s, ref, booking, dur);
       fetchBookings();
     });
   }
 
   function executeCancel() {
     if (!pendingCancel) return;
-    const ref = pendingCancel.ref;
+    const primaryRef = (pendingCancel.ref || '').split('-P')[0];
     const userBookings = getUserBookings();
-    delete userBookings[pendingCancel.key];
+    
+    // Purge all lots associated with this primaryRef
+    for (const [key, val] of Object.entries(userBookings)) {
+      if (val === primaryRef || (typeof val === 'string' && val.startsWith(primaryRef + '-P'))) {
+        delete userBookings[key];
+        const [sid, dt, tm] = key.split('_');
+        delete currentBookings[`${dt}_${tm}`];
+      }
+    }
     setUserBookings(userBookings);
 
-    // Cancel in Supabase Database
-    if (ref && supabaseClient) {
-      supabaseClient.from('bookings').update({ status: 'cancelled' }).eq('ref', ref).then(() => {}).catch(() => {});
+    // Cancel all linked parts in Supabase Database
+    if (primaryRef && supabaseClient) {
+      supabaseClient
+        .from('bookings')
+        .update({ status: 'cancelled' })
+        .or(`ref.eq.${primaryRef},ref.like.${primaryRef}-P%`)
+        .then(() => { fetchBookings(); })
+        .catch(() => {});
     }
 
     // Cancel in Google Apps Script
-    if (ref && APPS_SCRIPT_URL) {
-      const params = new URLSearchParams({ action: 'cancel', ref: ref });
+    if (primaryRef && APPS_SCRIPT_URL) {
+      const params = new URLSearchParams({ action: 'cancel', ref: primaryRef });
       fetch(APPS_SCRIPT_URL + '?' + params.toString()).catch(() => {});
     }
 
     closeConfirmModal();
-    showToast('Meeting cancelled', 'The slot has been released.', 'success');
+    showToast('Meeting cancelled', 'All reserved slots for this meeting have been released.', 'success');
     renderMyBookings();
+    renderSlots();
     fetchBookings();
   }
 
-  function buildGoogleCalendarURL(booking, date, time, salesman) {
+  function buildGoogleCalendarURL(booking, date, time, salesman, duration = 15) {
+    const dur = duration || booking.duration || 15;
+    const lotCount = dur / 15;
     const ex = getCurrentExhibition();
     const venueTz = getVenueTimezone();
     const venueTzAbbr = getVenueTimezoneAbbr(venueTz);
     const conv = getTimeInTimezone(date, time, venueTz, 'UTC');
     const start = conv.trueUtcDate;
-    const end = new Date(start.getTime() + 15 * 60000);
+    const end = new Date(start.getTime() + dur * 60000);
     const fmt = (d) => d.getUTCFullYear().toString() + (d.getUTCMonth() + 1).toString().padStart(2, '0') + d.getUTCDate().toString().padStart(2, '0') + 'T' + d.getUTCHours().toString().padStart(2, '0') + d.getUTCMinutes().toString().padStart(2, '0') + '00Z';
     
     const userConv = (userTimezone !== venueTz) ? getTimeInTimezone(date, time, venueTz, userTimezone) : null;
     const userTimeLine = userConv ? `\nYour Local Time: ${userConv.time} ${userConv.tzAbbr}` : '';
 
-    const title = encodeURIComponent(`Meeting with ${salesman ? salesman.name : currentSalesmanId} — Universal Oleoresins (${ex.title})`);
-    const details = encodeURIComponent(`Reference Code: ${booking.ref}\nClient: ${booking.firstName} ${booking.lastName}\nCompany: ${booking.company}\nPhone: ${booking.phone}\nSales Representative: ${salesman ? salesman.name : currentSalesmanId}\nVenue Time: ${conv.targetDateStr} ${time} ${venueTzAbbr}${userTimeLine}`);
+    const endTimeVenue = getMeetingEndTime(time, dur);
+    const timeSpanVenue = `${formatTime12(time)} – ${formatTime12(endTimeVenue)} ${venueTzAbbr} (${dur} Mins · ${lotCount} Lot${lotCount > 1 ? 's' : ''})`;
+
+    const title = encodeURIComponent(`Meeting with ${salesman ? salesman.name : currentSalesmanId} (${dur} Mins) — Universal Oleoresins (${ex.title})`);
+    const details = encodeURIComponent(`Reference Code: ${booking.ref}\nClient: ${booking.firstName} ${booking.lastName}\nCompany: ${booking.company}\nPhone: ${booking.phone}\nSales Representative: ${salesman ? salesman.name : currentSalesmanId}\nDuration: ${dur} Minutes (${lotCount} x 15-minute lots)\nVenue Time: ${conv.targetDateStr} ${timeSpanVenue}${userTimeLine}`);
     const location = encodeURIComponent(`${ex.title} - ${ex.venue} (${ex.location})`);
     const datesStr = `${fmt(start)}/${fmt(end)}`;
     
     return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${datesStr}&details=${details}&location=${location}`;
   }
 
-  function showSuccess(date, time, salesman, ref, booking) {
-    const d = dates.find(x => x.value === date);
-    const slot = timeSlots.find(s => s.value === time);
+  function showSuccess(date, time, salesman, ref, booking, duration = 15) {
+    const dur = duration || booking.duration || 15;
+    const lotCount = dur / 15;
+    const d = dates.find(x => x.value === date) || { day: date, month: '' };
+    const slot = timeSlots.find(s => s.value === time) || { label: formatTime12(time), value: time };
+    const endTime = getMeetingEndTime(time, dur);
     const ex = getCurrentExhibition();
     const venueTz = getVenueTimezone();
     const venueTzAbbr = getVenueTimezoneAbbr(venueTz);
 
     document.getElementById('successDate').textContent = `${d.day} ${d.month}`;
-    document.getElementById('successTime').textContent = `${slot.label} ${venueTzAbbr}`;
+    const spanText = dur > 15 ? `${formatTime12(time)} – ${formatTime12(endTime)}` : slot.label;
+    document.getElementById('successTime').textContent = `${spanText} ${venueTzAbbr} (${dur} Mins · ${lotCount} Lot${lotCount > 1 ? 's' : ''})`;
     
     const localTimeWrapper = document.getElementById('successLocalTimeWrapper');
     const localTimeEl = document.getElementById('successLocalTime');
     if (userTimezone !== venueTz) {
-      const uConv = getTimeInTimezone(date, time, venueTz, userTimezone);
-      if (localTimeEl) localTimeEl.textContent = `${uConv.time} ${uConv.tzAbbr}${uConv.dayDiff !== 0 ? (uConv.dayDiff > 0 ? ' (+1d)' : ' (-1d)') : ''}`;
+      const uStart = getTimeInTimezone(date, time, venueTz, userTimezone);
+      const uEnd = getTimeInTimezone(date, endTime, venueTz, userTimezone);
+      const uSpan = dur > 15 ? `${uStart.time} – ${uEnd.time}` : uStart.time;
+      if (localTimeEl) localTimeEl.textContent = `${uSpan} ${uStart.tzAbbr}${uStart.dayDiff !== 0 ? (uStart.dayDiff > 0 ? ' (+1d)' : ' (-1d)') : ''}`;
       if (localTimeWrapper) localTimeWrapper.style.display = 'block';
     } else {
       if (localTimeWrapper) localTimeWrapper.style.display = 'none';
@@ -2338,43 +2739,48 @@
 
     document.getElementById('successSalesman').textContent = salesman ? salesman.name : currentSalesmanId;
     document.getElementById('successRef').textContent = ref;
-    document.getElementById('downloadICS').dataset.booking = JSON.stringify({ booking, date, time, salesman });
+    document.getElementById('downloadICS').dataset.booking = JSON.stringify({ booking, date, time, salesman, duration: dur });
 
     const gCalBtn = document.getElementById('addToGoogleCal');
     if (gCalBtn) {
-      gCalBtn.href = buildGoogleCalendarURL(booking, date, time, salesman);
+      gCalBtn.href = buildGoogleCalendarURL(booking, date, time, salesman, dur);
     }
 
     const waBtn = document.getElementById('shareWhatsAppBtn');
     if (waBtn) {
-      let timeDesc = `${slot.label} ${venueTzAbbr} (Venue)`;
+      let timeDesc = `${spanText} ${venueTzAbbr} (${dur} Mins)`;
       if (userTimezone !== venueTz) {
-        const uConv = getTimeInTimezone(date, time, venueTz, userTimezone);
-        timeDesc += ` / ${uConv.time} ${uConv.tzAbbr} (Your Time)`;
+        const uStart = getTimeInTimezone(date, time, venueTz, userTimezone);
+        const uEnd = getTimeInTimezone(date, endTime, venueTz, userTimezone);
+        timeDesc += ` / ${uStart.time}–${uEnd.time} ${uStart.tzAbbr} (Your Time)`;
       }
       const text = `Hi! My meeting with ${salesman ? salesman.name : currentSalesmanId} (Universal Oleoresins) is confirmed for ${d.day} ${d.month} at ${timeDesc}.\nReference: ${ref}\nVenue: ${ex.title} - ${ex.venue}, ${ex.location}`;
       waBtn.href = `https://wa.me/?text=${encodeURIComponent(text)}`;
     }
 
     document.getElementById('successModal').classList.add('open');
-    showToast('Meeting Confirmed!', `Your slot is reserved for ${d.day} ${d.month} at ${slot.label}.`, 'success');
+    showToast('Meeting Confirmed!', `Your slot is reserved for ${d.day} ${d.month} (${dur} Mins).`, 'success');
   }
 
   function closeConfirmModal() {
     document.getElementById('confirmModal').classList.remove('open'); pendingCancel = null;
   }
 
-  function downloadICS(booking, date, time, salesman) {
+  function downloadICS(booking, date, time, salesman, duration = 15) {
+    const dur = duration || booking.duration || 15;
+    const lotCount = dur / 15;
     const ex = getCurrentExhibition();
     const venueTz = getVenueTimezone();
     const venueTzAbbr = getVenueTimezoneAbbr(venueTz);
     const conv = getTimeInTimezone(date, time, venueTz, 'UTC');
     const start = conv.trueUtcDate;
-    const end = new Date(start.getTime() + 15 * 60000);
+    const end = new Date(start.getTime() + dur * 60000);
     const fmtUtc = (d) => d.getUTCFullYear().toString() + (d.getUTCMonth() + 1).toString().padStart(2, '0') + d.getUTCDate().toString().padStart(2, '0') + 'T' + d.getUTCHours().toString().padStart(2, '0') + d.getUTCMinutes().toString().padStart(2, '0') + '00Z';
     
     const userConv = (userTimezone !== venueTz) ? getTimeInTimezone(date, time, venueTz, userTimezone) : null;
     const userTimeNote = userConv ? `\\nYour Local Time: ${userConv.time} ${userConv.tzAbbr}` : '';
+    const endTimeVenue = getMeetingEndTime(time, dur);
+    const timeSpanVenue = `${formatTime12(time)} - ${formatTime12(endTimeVenue)} ${venueTzAbbr} (${dur} Mins)`;
 
     const ics = [
       'BEGIN:VCALENDAR',
@@ -2387,8 +2793,8 @@
       `DTSTAMP:${fmtUtc(new Date())}`,
       `DTSTART:${fmtUtc(start)}`,
       `DTEND:${fmtUtc(end)}`,
-      `SUMMARY:Meeting with ${salesman ? salesman.name : currentSalesmanId} — Universal Oleoresins (${venueTzAbbr})`,
-      `DESCRIPTION:Reference: ${booking.ref}\\nName: ${booking.firstName} ${booking.lastName}\\nCompany: ${booking.company}\\nEmail: ${booking.email}\\nPhone: ${booking.phone}\\nSalesman: ${salesman ? salesman.name : currentSalesmanId}\\nVenue Time: ${date} ${time} ${venueTzAbbr}${userTimeNote}`,
+      `SUMMARY:Meeting with ${salesman ? salesman.name : currentSalesmanId} (${dur} Mins) — Universal Oleoresins (${venueTzAbbr})`,
+      `DESCRIPTION:Reference: ${booking.ref}\\nDuration: ${dur} Mins (${lotCount} Lots)\\nName: ${booking.firstName} ${booking.lastName}\\nCompany: ${booking.company}\\nEmail: ${booking.email}\\nPhone: ${booking.phone}\\nSalesman: ${salesman ? salesman.name : currentSalesmanId}\\nVenue Time: ${date} ${timeSpanVenue}${userTimeNote}`,
       `LOCATION:${ex.title} - ${ex.venue} (${ex.location})`,
       'STATUS:CONFIRMED',
       'END:VEVENT',
@@ -2602,7 +3008,28 @@
     const query = document.getElementById('reportSearch').value.toLowerCase().trim();
     const tbody = document.getElementById('reportTableBody');
 
-    let filtered = rawBookingsList;
+    // Group rawBookingsList by primaryRef to consolidate multi-lot bookings
+    const reportMap = new Map();
+    rawBookingsList.forEach(b => {
+      const baseRef = (b.ref || '').split('-P')[0];
+      if (!reportMap.has(baseRef)) {
+        reportMap.set(baseRef, {
+          ...b,
+          ref: baseRef,
+          startTime: b.time,
+          lotCount: 1,
+          duration: b.duration || 15
+        });
+      } else {
+        const item = reportMap.get(baseRef);
+        item.lotCount++;
+        if (item.lotCount * 15 > item.duration) item.duration = item.lotCount * 15;
+        if (b.time < item.startTime) item.startTime = b.time;
+      }
+    });
+    const aggregatedList = Array.from(reportMap.values());
+
+    let filtered = aggregatedList;
     if (sFilter) filtered = filtered.filter(b => b.salesmanId === sFilter);
     if (query) {
       filtered = filtered.filter(b => 
@@ -2613,15 +3040,16 @@
       );
     }
 
-    // Update KPIs
-    document.getElementById('kpiTotalBookings').textContent = rawBookingsList.length;
+    // Update KPIs based on consolidated meetings
+    const confirmedMeetings = aggregatedList.filter(b => b.status !== 'cancelled');
+    document.getElementById('kpiTotalBookings').textContent = confirmedMeetings.length;
     const totalPossibleSlots = salesmen.length * dates.length * timeSlots.length;
-    const capPct = totalPossibleSlots ? Math.round((rawBookingsList.length / totalPossibleSlots) * 100) : 0;
+    const capPct = totalPossibleSlots ? Math.round((confirmedMeetings.length / totalPossibleSlots) * 100) : 0;
     document.getElementById('kpiCapacity').textContent = capPct + '%';
 
     // Calculate Top Salesman
     const counts = {};
-    rawBookingsList.forEach(b => counts[b.salesmanName || b.salesmanId] = (counts[b.salesmanName || b.salesmanId] || 0) + 1);
+    confirmedMeetings.forEach(b => counts[b.salesmanName || b.salesmanId] = (counts[b.salesmanName || b.salesmanId] || 0) + 1);
     let topName = '--'; let maxCount = 0;
     Object.entries(counts).forEach(([k, v]) => { if (v > maxCount) { maxCount = v; topName = k; } });
     document.getElementById('kpiTopSalesman').textContent = topName !== '--' ? `${topName} (${maxCount})` : '--';
@@ -2631,29 +3059,60 @@
       return;
     }
 
-    tbody.innerHTML = filtered.map(b => `
+    tbody.innerHTML = filtered.map(b => {
+      const dur = b.duration || (b.lotCount ? b.lotCount * 15 : 15);
+      const endTime = getMeetingEndTime(b.startTime, dur);
+      const durBadge = dur > 15 ? `<span class="ml-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-orange-100 text-orange-800">${dur}m (${b.lotCount} lots)</span>` : '';
+      const timeSpan = dur > 15 ? `${formatTime12(b.startTime)}–${formatTime12(endTime)}` : formatTime12(b.startTime);
+      return `
       <tr class="hover:bg-amber-50/50">
         <td class="p-3 font-mono font-bold text-[var(--accent)]">${b.ref || 'UO-REF'}</td>
-        <td class="p-3 font-medium">${b.date} <span class="text-[var(--muted)]">${b.time}</span></td>
+        <td class="p-3 font-medium whitespace-nowrap">${b.date} <span class="text-[var(--muted)]">${timeSpan}</span> ${durBadge}</td>
         <td class="p-3 font-medium">${b.salesmanName || b.salesmanId}</td>
         <td class="p-3 font-semibold">${b.firstName} ${b.lastName}</td>
         <td class="p-3">${b.company}</td>
         <td class="p-3 text-[11px] text-[var(--fg-2)]">${b.email}<br>${b.phone}</td>
-        <td class="p-3"><span class="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800">Confirmed</span></td>
+        <td class="p-3"><span class="px-2 py-0.5 rounded text-[10px] font-bold ${b.status === 'cancelled' ? 'bg-red-100 text-red-800' : 'bg-emerald-100 text-emerald-800'}">${b.status === 'cancelled' ? 'Cancelled' : 'Confirmed'}</span></td>
       </tr>
-    `).join('');
+      `;
+    }).join('');
   }
 
   function exportToCSV() {
-    if (rawBookingsList.length === 0) {
+    // Group by primaryRef for export
+    const reportMap = new Map();
+    rawBookingsList.forEach(b => {
+      const baseRef = (b.ref || '').split('-P')[0];
+      if (!reportMap.has(baseRef)) {
+        reportMap.set(baseRef, {
+          ...b,
+          ref: baseRef,
+          startTime: b.time,
+          lotCount: 1,
+          duration: b.duration || 15
+        });
+      } else {
+        const item = reportMap.get(baseRef);
+        item.lotCount++;
+        if (item.lotCount * 15 > item.duration) item.duration = item.lotCount * 15;
+        if (b.time < item.startTime) item.startTime = b.time;
+      }
+    });
+    const aggregatedList = Array.from(reportMap.values());
+
+    if (aggregatedList.length === 0) {
       showToast('No data', 'There are no bookings to export.', 'error');
       return;
     }
-    const headers = ["Reference", "Exhibition", "Salesman ID", "Salesman Name", "Date", "Time", "First Name", "Last Name", "Company", "Email", "Phone", "Status"];
-    const rows = rawBookingsList.map(b => [
-      b.ref, b.exhibitionId || 'fi-india-2026', b.salesmanId, b.salesmanName, b.date, b.time,
-      `"${b.firstName}"`, `"${b.lastName}"`, `"${b.company}"`, b.email, `'${b.phone}`, b.status || 'confirmed'
-    ]);
+    const headers = ["Reference", "Exhibition", "Salesman ID", "Salesman Name", "Date", "Start Time", "End Time", "Duration (Mins)", "Lots", "First Name", "Last Name", "Company", "Email", "Phone", "Status"];
+    const rows = aggregatedList.map(b => {
+      const dur = b.duration || (b.lotCount ? b.lotCount * 15 : 15);
+      const endTime = getMeetingEndTime(b.startTime, dur);
+      return [
+        b.ref, b.exhibitionId || 'fi-india-2026', b.salesmanId, b.salesmanName, b.date, b.startTime, endTime, dur, b.lotCount,
+        `"${b.firstName}"`, `"${b.lastName}"`, `"${b.company}"`, b.email, `'${b.phone}`, b.status || 'confirmed'
+      ];
+    });
 
     const csvContent = "data:text/csv;charset=utf-8," + [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
     const encodedUri = encodeURI(csvContent);

@@ -109,6 +109,8 @@ function handleBook(params) {
     const dateStr = params.date;
     const timeStr = params.time;
     const exhibitionId = params.exhibitionId || "fi-india-2026";
+    const duration = parseInt(params.duration) || 15;
+    const slotsToBook = params.slots ? params.slots.split(',') : [timeStr];
 
     for (let i = 1; i < data.length; i++) {
       const row = data[i];
@@ -118,9 +120,9 @@ function handleBook(params) {
       const rowDate = formatDateStr(row[5]);
       const rowTime = row[6];
 
-      if (rowStatus !== 'cancelled' && rowExId === exhibitionId && rowSid === salesmanId && rowDate === dateStr && rowTime === timeStr) {
+      if (rowStatus !== 'cancelled' && rowExId === exhibitionId && rowSid === salesmanId && rowDate === dateStr && slotsToBook.indexOf(rowTime) !== -1) {
         lock.releaseLock();
-        return jsonResponse({ status: "error", message: "Slot already booked by another user." });
+        return jsonResponse({ status: "error", message: "One or more 15-minute lots for this meeting were just booked by another user." });
       }
     }
 
@@ -128,27 +130,30 @@ function handleBook(params) {
     const ref = params.ref || ('UO-' + Math.random().toString(36).substring(2, 8).toUpperCase());
     const salesmanName = params.salesmanName || getSalesmanName(salesmanId);
 
-    sheet.appendRow([
-      timestamp,
-      ref,
-      exhibitionId,
-      salesmanId,
-      salesmanName,
-      "'" + dateStr, // Force text to prevent Google Sheet auto-formatting dates
-      "'" + timeStr, // Force text to prevent Google Sheet auto-formatting times
-      params.firstName,
-      params.lastName,
-      params.company,
-      params.email,
-      params.phone,
-      "confirmed"
-    ]);
+    slotsToBook.forEach((slotTime, idx) => {
+      const partRef = idx === 0 ? ref : (ref + '-P' + (idx + 1));
+      sheet.appendRow([
+        timestamp,
+        partRef,
+        exhibitionId,
+        salesmanId,
+        salesmanName,
+        "'" + dateStr, // Force text to prevent Google Sheet auto-formatting dates
+        "'" + slotTime, // Force text to prevent Google Sheet auto-formatting times
+        params.firstName,
+        params.lastName,
+        params.company,
+        params.email,
+        params.phone,
+        "confirmed"
+      ]);
+    });
 
     // Send automated email confirmation to client & sales representative
     sendConfirmationEmail(params, ref, salesmanName);
 
     lock.releaseLock();
-    return jsonResponse({ status: "success", ref: ref, date: dateStr, time: timeStr });
+    return jsonResponse({ status: "success", ref: ref, date: dateStr, time: timeStr, duration: duration, slots: slotsToBook });
   } catch (err) {
     lock.releaseLock();
     return jsonResponse({ status: "error", message: err.toString() });
@@ -168,48 +173,70 @@ function handleUpdate(params) {
     const ref = params.ref;
     const newDate = params.date;
     const newTime = params.time;
+    const newDuration = parseInt(params.duration) || 15;
+    const newSlots = params.slots ? params.slots.split(',') : [newTime];
 
-    let targetIndex = -1;
     let targetExhibitionId = null;
     let targetSalesmanId = null;
+    let salesmanName = null;
 
+    // Find all existing rows for this booking (ref and ref-P*)
+    const existingIndices = [];
     for (let i = 1; i < data.length; i++) {
-      if (data[i][1] === ref) {
-        targetIndex = i;
-        targetExhibitionId = data[i][2];
-        targetSalesmanId = data[i][3];
-        break;
+      const rowRef = String(data[i][1]);
+      if (rowRef === ref || rowRef.indexOf(ref + '-P') === 0) {
+        existingIndices.push(i);
+        if (!targetExhibitionId) {
+          targetExhibitionId = data[i][2];
+          targetSalesmanId = data[i][3];
+          salesmanName = data[i][4] || getSalesmanName(targetSalesmanId);
+        }
       }
     }
 
-    if (targetIndex === -1) {
+    if (existingIndices.length === 0) {
       lock.releaseLock();
       return jsonResponse({ status: "error", message: "Booking reference not found" });
     }
 
-    // Make sure the new date/time isn't already taken by a DIFFERENT
-    // booking for this same rep before we overwrite anything.
+    // Make sure the new slots aren't already taken by another booking
     for (let i = 1; i < data.length; i++) {
-      if (i === targetIndex) continue;
+      if (existingIndices.indexOf(i) !== -1) continue;
       const row = data[i];
       const rowStatus = row[12] || 'confirmed';
       const rowDate = formatDateStr(row[5]);
       const rowTime = row[6];
-      if (rowStatus !== 'cancelled' && row[2] === targetExhibitionId && row[3] === targetSalesmanId && rowDate === newDate && rowTime === newTime) {
+      if (rowStatus !== 'cancelled' && row[2] === targetExhibitionId && row[3] === targetSalesmanId && rowDate === newDate && newSlots.indexOf(rowTime) !== -1) {
         lock.releaseLock();
-        return jsonResponse({ status: "error", message: "That slot is already booked. Please choose another time." });
+        return jsonResponse({ status: "error", message: "One or more requested slots are already booked. Please choose another time." });
       }
     }
 
-    const i = targetIndex;
-    const salesmanName = data[i][4] || getSalesmanName(targetSalesmanId);
-    sheet.getRange(i + 1, 6).setValue("'" + newDate);
-    sheet.getRange(i + 1, 7).setValue("'" + newTime);
-    sheet.getRange(i + 1, 8).setValue(params.firstName);
-    sheet.getRange(i + 1, 9).setValue(params.lastName);
-    sheet.getRange(i + 1, 10).setValue(params.company);
-    sheet.getRange(i + 1, 11).setValue(params.email);
-    sheet.getRange(i + 1, 12).setValue(params.phone);
+    // Delete existing rows backwards
+    for (let k = existingIndices.length - 1; k >= 0; k--) {
+      sheet.deleteRow(existingIndices[k] + 1);
+    }
+
+    // Re-append updated slots
+    const timestamp = new Date().toISOString();
+    newSlots.forEach((slotTime, idx) => {
+      const partRef = idx === 0 ? ref : (ref + '-P' + (idx + 1));
+      sheet.appendRow([
+        timestamp,
+        partRef,
+        targetExhibitionId,
+        targetSalesmanId,
+        salesmanName,
+        "'" + newDate,
+        "'" + slotTime,
+        params.firstName,
+        params.lastName,
+        params.company,
+        params.email,
+        params.phone,
+        "confirmed"
+      ]);
+    });
 
     // Send updated meeting email notification to client & sales representative
     sendUpdateEmail(params, ref, salesmanName, targetSalesmanId);
@@ -235,30 +262,38 @@ function handleCancel(params) {
     const ref = params.ref;
 
     let found = false;
+    let cancelInfo = null;
     // Loop backwards when deleting rows to not mess up the row indexes
     for (let i = data.length - 1; i >= 1; i--) {
       const row = data[i];
-      if (ref && row[1] === ref) {
-        const clientEmail = row[10];
-        const salesmanId = row[3];
-        const salesmanName = row[4];
-        const salesmanEmail = getSalesmanEmail(salesmanId);
-        const firstName = row[7];
-        const lastName = row[8];
-        const company = row[9];
-        const date = formatDateStr(row[5]);
-        const time = row[6];
-
+      const rowRef = String(row[1]);
+      if (ref && (rowRef === ref || rowRef.indexOf(ref + '-P') === 0)) {
+        if (!cancelInfo) {
+          cancelInfo = {
+            clientEmail: row[10],
+            salesmanId: row[3],
+            salesmanName: row[4],
+            salesmanEmail: getSalesmanEmail(row[3]),
+            firstName: row[7],
+            lastName: row[8],
+            company: row[9],
+            date: formatDateStr(row[5]),
+            time: row[6]
+          };
+        }
         sheet.deleteRow(i + 1); // Permanently deletes row from Google Sheets
         found = true;
-
-        // Send cancellation email notification to client & sales representative
-        sendCancellationEmail(clientEmail, salesmanEmail, ref, firstName, lastName, company, date, time, salesmanName);
       }
     }
 
     lock.releaseLock();
-    if (found) {
+    if (found && cancelInfo) {
+      // Send single cancellation email notification to client & sales representative
+      sendCancellationEmail(
+        cancelInfo.clientEmail, cancelInfo.salesmanEmail, ref,
+        cancelInfo.firstName, cancelInfo.lastName, cancelInfo.company,
+        cancelInfo.date, cancelInfo.time, cancelInfo.salesmanName
+      );
       return jsonResponse({ status: "success", message: "Booking deleted permanently" });
     } else {
       return jsonResponse({ status: "error", message: "Booking reference not found" });
@@ -362,13 +397,18 @@ function sendConfirmationEmail(params, ref, salesmanName) {
   
   if (!clientEmail || !clientEmail.includes('@')) return;
 
+  const duration = parseInt(params.duration) || 15;
+  const lotCount = duration / 15;
+  const timeDesc = duration > 15 ? `${params.time} IST (${duration} Mins · ${lotCount} Lots)` : `${params.time} IST (15 Mins)`;
+
   const subject = `Meeting Confirmation: Universal Oleoresins [Ref: ${ref}]`;
   const bodyText = `Dear ${params.firstName} ${params.lastName},\n\n` +
     `Your meeting with ${salesmanName} at Universal Oleoresins is confirmed!\n\n` +
     `Meeting Details:\n` +
     `- Reference Code: ${ref}\n` +
     `- Date: ${params.date}\n` +
-    `- Time: ${params.time} IST\n` +
+    `- Time: ${timeDesc}\n` +
+    `- Duration: ${duration} Minutes (${lotCount} x 15-minute lots)\n` +
     `- Company: ${params.company}\n` +
     `- Sales Representative: ${salesmanName}\n` +
     `- Location: Stall 3D38, Hall 3 (BEC, Goregaon, Mumbai)\n\n` +
@@ -387,6 +427,7 @@ function sendConfirmationEmail(params, ref, salesmanName) {
         <table style="width: 100%; border-collapse: collapse; margin: 20px 0; background-color: #fbf7f0; border-radius: 8px; overflow: hidden;">
           <tr><td style="padding: 10px 14px; border-bottom: 1px solid #eee; font-weight: bold; width: 40%;">Reference Code:</td><td style="padding: 10px 14px; border-bottom: 1px solid #eee; color: #d54e1f; font-weight: bold;">${ref}</td></tr>
           <tr><td style="padding: 10px 14px; border-bottom: 1px solid #eee; font-weight: bold;">Date & Time:</td><td style="padding: 10px 14px; border-bottom: 1px solid #eee;">${params.date} at ${params.time} IST</td></tr>
+          <tr><td style="padding: 10px 14px; border-bottom: 1px solid #eee; font-weight: bold;">Duration:</td><td style="padding: 10px 14px; border-bottom: 1px solid #eee; color: #d54e1f; font-weight: bold;">${duration} Minutes (${lotCount} x 15-min lots)</td></tr>
           <tr><td style="padding: 10px 14px; border-bottom: 1px solid #eee; font-weight: bold;">Representative:</td><td style="padding: 10px 14px; border-bottom: 1px solid #eee;">${salesmanName}</td></tr>
           <tr><td style="padding: 10px 14px; border-bottom: 1px solid #eee; font-weight: bold;">Company:</td><td style="padding: 10px 14px; border-bottom: 1px solid #eee;">${params.company}</td></tr>
           <tr><td style="padding: 10px 14px; font-weight: bold;">Location:</td><td style="padding: 10px 14px;">Stall 3D38, Hall 3 (BEC, Goregaon, Mumbai)</td></tr>
@@ -413,7 +454,7 @@ function sendConfirmationEmail(params, ref, salesmanName) {
     try {
       MailApp.sendEmail({
         to: salesmanEmail,
-        subject: `New Meeting Booked: ${params.firstName} ${params.lastName} (${params.company}) [Ref: ${ref}]`,
+        subject: `New Meeting Booked (${duration} Mins): ${params.firstName} ${params.lastName} (${params.company}) [Ref: ${ref}]`,
         body: bodyText,
         htmlBody: bodyHtml
       });
@@ -433,13 +474,18 @@ function sendUpdateEmail(params, ref, salesmanName, salesmanId) {
   
   if (!clientEmail || !clientEmail.includes('@')) return;
 
+  const duration = parseInt(params.duration) || 15;
+  const lotCount = duration / 15;
+  const timeDesc = duration > 15 ? `${params.time} IST (${duration} Mins · ${lotCount} Lots)` : `${params.time} IST (15 Mins)`;
+
   const subject = `Updated Meeting Schedule: Universal Oleoresins [Ref: ${ref}]`;
   const bodyText = `Dear ${params.firstName} ${params.lastName},\n\n` +
     `Your meeting with ${salesmanName} at Universal Oleoresins has been updated/rescheduled.\n\n` +
     `Updated Meeting Details:\n` +
     `- Reference Code: ${ref}\n` +
     `- New Date: ${params.date}\n` +
-    `- New Time: ${params.time} IST\n` +
+    `- New Time: ${timeDesc}\n` +
+    `- Duration: ${duration} Minutes (${lotCount} x 15-minute lots)\n` +
     `- Company: ${params.company}\n` +
     `- Representative: ${salesmanName}\n` +
     `- Location: Stall 3D38, Hall 3 (BEC, Goregaon, Mumbai)\n\n` +
@@ -458,6 +504,7 @@ function sendUpdateEmail(params, ref, salesmanName, salesmanId) {
         <table style="width: 100%; border-collapse: collapse; margin: 20px 0; background-color: #fbf7f0; border-radius: 8px; overflow: hidden;">
           <tr><td style="padding: 10px 14px; border-bottom: 1px solid #eee; font-weight: bold; width: 40%;">Reference Code:</td><td style="padding: 10px 14px; border-bottom: 1px solid #eee; color: #d54e1f; font-weight: bold;">${ref}</td></tr>
           <tr><td style="padding: 10px 14px; border-bottom: 1px solid #eee; font-weight: bold;">New Date & Time:</td><td style="padding: 10px 14px; border-bottom: 1px solid #eee; color: #d54e1f; font-weight: bold;">${params.date} at ${params.time} IST</td></tr>
+          <tr><td style="padding: 10px 14px; border-bottom: 1px solid #eee; font-weight: bold;">Duration:</td><td style="padding: 10px 14px; border-bottom: 1px solid #eee; color: #d54e1f; font-weight: bold;">${duration} Minutes (${lotCount} x 15-min lots)</td></tr>
           <tr><td style="padding: 10px 14px; border-bottom: 1px solid #eee; font-weight: bold;">Representative:</td><td style="padding: 10px 14px; border-bottom: 1px solid #eee;">${salesmanName}</td></tr>
           <tr><td style="padding: 10px 14px; border-bottom: 1px solid #eee; font-weight: bold;">Company:</td><td style="padding: 10px 14px; border-bottom: 1px solid #eee;">${params.company}</td></tr>
           <tr><td style="padding: 10px 14px; font-weight: bold;">Location:</td><td style="padding: 10px 14px;">Stall 3D38, Hall 3 (BEC, Goregaon, Mumbai)</td></tr>
@@ -482,8 +529,8 @@ function sendCancellationEmail(clientEmail, salesmanEmail, ref, firstName, lastN
     `Your meeting scheduled for ${date} at ${time} IST with ${salesmanName} at Universal Oleoresins has been cancelled.\n\n` +
     `Reference Code: ${ref}\n` +
     `Company: ${company}\n\n` +
-    `The slot has been released. If you wish to reschedule, please visit our scheduler website.\n\n` +
-    `Universal Oleoresins Team`;
+    `All reserved slots for this meeting have been released. If you wish to reschedule, please visit our scheduler website.\n\n` +
+    `Thank you,\nUniversal Oleoresins Team`;
 
   const bodyHtml = `
     <div style="font-family: Arial, sans-serif; color: #1a1410; max-width: 600px; margin: 0 auto; border: 1px solid #e0e0e0; border-radius: 12px; overflow: hidden;">
