@@ -88,9 +88,11 @@
       </div>
       
       <div class="flex items-center gap-3 text-sm">
-        <div class="hidden sm:flex items-center gap-2 bg-white/90 px-3 py-1.5 rounded-full border border-[var(--border)] shadow-sm">
-          <i class="fa-solid fa-globe text-xs text-[var(--accent)]"></i>
-          <span id="exhibitionNameHeader" class="text-xs font-semibold text-[var(--fg)]">Fi India 2026</span>
+        <div class="flex items-center gap-2 bg-white/90 px-3 py-1 rounded-full border border-[var(--border)] shadow-sm hover:border-[var(--accent-light)] transition" title="Select Exhibition Event">
+          <i class="fa-solid fa-calendar-day text-xs text-[var(--accent)]"></i>
+          <label for="headerExhibitionSelect" class="text-[10px] font-bold text-[var(--muted)] uppercase tracking-wider hidden lg:inline">Exhibition:</label>
+          <select id="headerExhibitionSelect" class="bg-transparent text-xs font-bold text-[var(--fg)] cursor-pointer focus:outline-none pr-1 max-w-[170px] sm:max-w-[220px] truncate">
+          </select>
         </div>
         <div class="hidden md:flex items-center gap-2 text-[var(--fg-2)] bg-white/90 px-3.5 py-1.5 rounded-full border border-[var(--border)] shadow-sm">
           <span class="w-2 h-2 rounded-full bg-[var(--accent)] live-dot"></span>
@@ -118,8 +120,23 @@
         <div class="glass rounded-2xl p-5">
           <div class="text-[10px] uppercase tracking-[2px] text-[var(--muted)] mb-3 flex items-center justify-between">
             <span>Exhibition Info</span>
-            <span class="text-[var(--accent)] font-bold">Live Booth</span>
+            <span class="text-[var(--accent)] font-bold flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>Live Booth</span>
           </div>
+
+          <!-- Exhibition Selector in Hero Card -->
+          <div class="mb-3.5 pb-3 border-b border-[var(--border)]">
+            <div class="flex items-center justify-between mb-1.5">
+              <label for="mainExhibitionSelect" class="text-[10px] uppercase tracking-[1.5px] font-bold text-[var(--muted)] flex items-center gap-1">
+                <i class="fa-solid fa-calendar-check text-[var(--accent)] text-[11px]"></i>Select Exhibition
+              </label>
+              <button type="button" id="copyExhibitionLinkBtn" class="text-[11px] font-semibold text-[var(--accent)] hover:underline flex items-center gap-1" title="Copy direct booking link for this exhibition">
+                <i class="fa-regular fa-copy"></i>Copy Link
+              </button>
+            </div>
+            <select id="mainExhibitionSelect" class="input text-xs font-bold py-1.5 px-3 bg-white w-full cursor-pointer shadow-xs border-[var(--border)] text-[var(--fg)] hover:border-[var(--accent-light)] transition">
+            </select>
+          </div>
+
           <div class="space-y-2.5 text-sm">
             <div class="flex items-baseline justify-between"><span class="text-[var(--fg-2)]">Exhibition</span><span class="font-medium text-right" id="infoTitle">Fi India 2026</span></div>
             <div class="flex items-baseline justify-between"><span class="text-[var(--fg-2)]">Venue</span><span class="font-medium text-right" id="infoVenue">(BEC), Goregaon, Mumbai</span></div>
@@ -642,19 +659,40 @@
 
       <!-- Tab 4: Exhibition Setup Manager -->
       <div id="tabExhibitions" class="tab-content hidden">
-        <div class="mb-4">
-          <label class="text-[10px] uppercase tracking-[2px] text-[var(--muted)] mb-1 block">Select Exhibition to Edit</label>
-          <select id="adminExhibitionSelect" class="input text-xs"></select>
+        <div class="flex flex-col sm:flex-row sm:items-end justify-between gap-3 mb-5 p-3.5 bg-amber-50/70 border border-amber-200/70 rounded-xl">
+          <div class="flex-1">
+            <label class="text-[10px] uppercase tracking-[2px] font-bold text-[var(--muted)] mb-1.5 block">Select Exhibition to Manage</label>
+            <select id="adminExhibitionSelect" class="input text-xs font-semibold bg-white cursor-pointer"></select>
+          </div>
+          <div class="flex items-center gap-2">
+            <button type="button" id="addNewExhibitionBtn" class="px-3.5 py-2 rounded-xl bg-[var(--accent)] hover:bg-[var(--accent-2)] text-white text-xs font-bold transition flex items-center gap-1.5 shadow-xs">
+              <i class="fa-solid fa-plus text-[10px]"></i> Add Exhibition
+            </button>
+            <button type="button" id="deleteExhibitionBtn" class="px-3 py-2 rounded-xl bg-red-50 hover:bg-red-100 text-red-600 text-xs font-bold transition flex items-center gap-1.5 border border-red-200">
+              <i class="fa-solid fa-trash text-[10px]"></i> Delete
+            </button>
+          </div>
         </div>
+
         <form id="exhibitionForm" class="space-y-4">
-          <div class="grid grid-cols-2 gap-4">
-            <div><label class="text-[10px] uppercase tracking-[2px] text-[var(--muted)] mb-1 block">Exhibition Title</label><input type="text" name="exTitle" class="input text-xs" value="Fi India 2026" required></div>
-            <div><label class="text-[10px] uppercase tracking-[2px] text-[var(--muted)] mb-1 block">Venue</label><input type="text" name="exVenue" class="input text-xs" value="(BEC), Goregaon, Mumbai" required></div>
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <label class="text-[10px] uppercase tracking-[2px] text-[var(--muted)] mb-1 block">Exhibition ID / Slug</label>
+              <input type="text" name="exId" id="adminExId" class="input text-xs font-mono font-semibold" placeholder="e.g. gulfood-2027" required>
+            </div>
+            <div>
+              <label class="text-[10px] uppercase tracking-[2px] text-[var(--muted)] mb-1 block">Exhibition Title</label>
+              <input type="text" name="exTitle" id="adminExTitle" class="input text-xs font-semibold" value="Fi India 2026" required>
+            </div>
+            <div>
+              <label class="text-[10px] uppercase tracking-[2px] text-[var(--muted)] mb-1 block">Venue</label>
+              <input type="text" name="exVenue" id="adminExVenue" class="input text-xs" value="(BEC), Goregaon, Mumbai" required>
+            </div>
           </div>
           <div class="grid grid-cols-3 gap-4">
-            <div><label class="text-[10px] uppercase tracking-[2px] text-[var(--muted)] mb-1 block">Stall / Location</label><input type="text" name="exLocation" class="input text-xs" value="Stall 3D38, Hall 3" required></div>
-            <div><label class="text-[10px] uppercase tracking-[2px] text-[var(--muted)] mb-1 block">Start Date</label><input type="date" name="exStartDate" class="input text-xs" value="2026-08-26" required></div>
-            <div><label class="text-[10px] uppercase tracking-[2px] text-[var(--muted)] mb-1 block">End Date</label><input type="date" name="exEndDate" class="input text-xs" value="2026-08-28" required></div>
+            <div><label class="text-[10px] uppercase tracking-[2px] text-[var(--muted)] mb-1 block">Stall / Location</label><input type="text" name="exLocation" id="adminExLocation" class="input text-xs" value="Stall 3D38, Hall 3" required></div>
+            <div><label class="text-[10px] uppercase tracking-[2px] text-[var(--muted)] mb-1 block">Start Date</label><input type="date" name="exStartDate" id="adminExStartDate" class="input text-xs font-medium" value="2026-08-26" required></div>
+            <div><label class="text-[10px] uppercase tracking-[2px] text-[var(--muted)] mb-1 block">End Date</label><input type="date" name="exEndDate" id="adminExEndDate" class="input text-xs font-medium" value="2026-08-28" required></div>
           </div>
 
           <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -673,8 +711,9 @@
             <div class="grid grid-cols-2 md:grid-cols-3 gap-2 bg-[var(--bg)] p-3 rounded-xl border border-[var(--border)] max-h-40 overflow-y-auto" id="teamChecklist"></div>
           </div>
 
-          <div class="pt-2 flex justify-end">
-            <button type="submit" class="px-5 py-2.5 rounded-xl bg-[var(--accent)] text-white text-xs font-bold hover:bg-[var(--accent-2)] transition">Save Exhibition Settings</button>
+          <div class="pt-2 flex justify-between items-center">
+            <span class="text-[11px] text-[var(--muted)]" id="exhibitionFormStatusText">Editing current exhibition</span>
+            <button type="submit" id="saveExhibitionBtn" class="px-5 py-2.5 rounded-xl bg-[var(--accent)] text-white text-xs font-bold hover:bg-[var(--accent-2)] transition shadow-sm">Save Exhibition Settings</button>
           </div>
         </form>
       </div>
@@ -979,10 +1018,19 @@
   ];
   
   function getExhibitions() {
-    try { return JSON.parse(localStorage.getItem('uo_exhibitions')) || defaultExhibitionsList; } catch(e) { return defaultExhibitionsList; }
+    try {
+      const stored = JSON.parse(localStorage.getItem('uo_exhibitions'));
+      if (Array.isArray(stored) && stored.length > 0) return stored;
+      return defaultExhibitionsList;
+    } catch(e) {
+      return defaultExhibitionsList;
+    }
   }
   let exhibitionsList = getExhibitions();
   let currentExhibitionId = localStorage.getItem('uo_current_exhibition') || 'fi-india-2026';
+  if (!exhibitionsList.some(e => e.id === currentExhibitionId)) {
+    currentExhibitionId = exhibitionsList[0] ? exhibitionsList[0].id : 'fi-india-2026';
+  }
 
   // ==========================================
   // DUAL TIME ZONE ENGINE & CONFIGURATION
@@ -1508,13 +1556,32 @@
     dates = generateDatesArray(ex.startDate, ex.endDate);
     const dateStr = formatDateRange(ex.startDate, ex.endDate);
     
-    document.getElementById('exhibitionHeaderTag').textContent = `${ex.title} · ${ex.location}`;
-    document.getElementById('exhibitionNameHeader').textContent = ex.title;
-    document.getElementById('exhibitionRibbon').textContent = `Meeting Scheduler · ${ex.title}`;
-    document.getElementById('infoTitle').textContent = ex.title;
-    document.getElementById('infoVenue').textContent = ex.venue;
-    document.getElementById('infoLocation').textContent = ex.location;
-    document.getElementById('infoDates').textContent = dateStr;
+    const tagEl = document.getElementById('exhibitionHeaderTag');
+    if (tagEl) tagEl.textContent = `${ex.title} · ${ex.location}`;
+    const nameEl = document.getElementById('exhibitionNameHeader');
+    if (nameEl) nameEl.textContent = ex.title;
+    const ribbonEl = document.getElementById('exhibitionRibbon');
+    if (ribbonEl) ribbonEl.textContent = `Meeting Scheduler · ${ex.title}`;
+    const titleEl = document.getElementById('infoTitle');
+    if (titleEl) titleEl.textContent = ex.title;
+    const venueEl = document.getElementById('infoVenue');
+    if (venueEl) venueEl.textContent = ex.venue;
+    const locEl = document.getElementById('infoLocation');
+    if (locEl) locEl.textContent = ex.location;
+    const datesEl = document.getElementById('infoDates');
+    if (datesEl) datesEl.textContent = dateStr;
+    const descEl = document.getElementById('exhibitionDescription');
+    if (descEl) {
+      descEl.innerHTML = `Reserve a meeting with our specialists at <strong>${ex.location}</strong> (${ex.venue}). Discover our latest spice oleoresins, natural extracts, and tailored solutions crafted for your business.`;
+    }
+
+    // Synchronize select dropdowns if rendered
+    const hSel = document.getElementById('headerExhibitionSelect');
+    if (hSel && hSel.value !== currentExhibitionId) hSel.value = currentExhibitionId;
+    const mSel = document.getElementById('mainExhibitionSelect');
+    if (mSel && mSel.value !== currentExhibitionId) mSel.value = currentExhibitionId;
+    const aSel = document.getElementById('adminExhibitionSelect');
+    if (aSel && aSel.value !== currentExhibitionId) aSel.value = currentExhibitionId;
     
     // Set default date to the first date of the exhibition
     currentDate = dates[0] ? dates[0].value : ex.startDate;
@@ -1525,17 +1592,160 @@
     updateClock();
   }
 
+  function populateExhibitionSelectors() {
+    const headerSel = document.getElementById('headerExhibitionSelect');
+    if (headerSel) {
+      headerSel.innerHTML = exhibitionsList.map(e => `<option value="${e.id}" ${e.id === currentExhibitionId ? 'selected' : ''}>${e.title}</option>`).join('');
+      headerSel.value = currentExhibitionId;
+    }
+    const mainSel = document.getElementById('mainExhibitionSelect');
+    if (mainSel) {
+      mainSel.innerHTML = exhibitionsList.map(e => `<option value="${e.id}" ${e.id === currentExhibitionId ? 'selected' : ''}>${e.title} — ${e.location}</option>`).join('');
+      mainSel.value = currentExhibitionId;
+    }
+    const adminSel = document.getElementById('adminExhibitionSelect');
+    if (adminSel) {
+      adminSel.innerHTML = exhibitionsList.map(e => `<option value="${e.id}" ${e.id === currentExhibitionId ? 'selected' : ''}>${e.title} (${e.id})</option>`).join('');
+      adminSel.value = currentExhibitionId;
+    }
+  }
+
+  function switchExhibition(newExId, notify = true) {
+    const ex = exhibitionsList.find(e => e.id === newExId);
+    if (!ex) return;
+    currentExhibitionId = ex.id;
+    localStorage.setItem('uo_current_exhibition', currentExhibitionId);
+
+    const headerSel = document.getElementById('headerExhibitionSelect');
+    if (headerSel) headerSel.value = currentExhibitionId;
+    const mainSel = document.getElementById('mainExhibitionSelect');
+    if (mainSel) mainSel.value = currentExhibitionId;
+    const adminSel = document.getElementById('adminExhibitionSelect');
+    if (adminSel) adminSel.value = currentExhibitionId;
+
+    try {
+      const url = new URL(window.location.href);
+      url.searchParams.set('ex', currentExhibitionId);
+      window.history.replaceState({}, '', url);
+    } catch(e) {}
+
+    renderExhibition();
+    populateTimezoneSelect();
+    populateAdminExhibitionForm();
+    renderSlots();
+    updateDateSubheading();
+    updateClock();
+    fetchBookings();
+
+    if (notify) {
+      showToast('Exhibition Selected', `Loaded schedule for ${ex.title} (${ex.venue}).`, 'info');
+    }
+  }
+
+  function prepareNewExhibitionForm() {
+    const form = document.getElementById('exhibitionForm');
+    if (!form) return;
+    form.dataset.isNew = 'true';
+    form.dataset.editingId = '';
+
+    const newNum = exhibitionsList.length + 1;
+    const tempId = `exhibition-${newNum}`;
+    const idInput = document.getElementById('adminExId');
+    if (idInput) {
+      idInput.value = tempId;
+      idInput.focus();
+    }
+    const titleInput = document.getElementById('adminExTitle');
+    if (titleInput) titleInput.value = `New Exhibition ${newNum}`;
+    const venueInput = document.getElementById('adminExVenue');
+    if (venueInput) venueInput.value = 'Exhibition Centre / Trade Hall';
+    const locInput = document.getElementById('adminExLocation');
+    if (locInput) locInput.value = 'Stall 1A, Hall 1';
+
+    const today = new Date();
+    const startStr = today.toISOString().split('T')[0];
+    const end = new Date(today.getTime() + 2 * 86400000);
+    const endStr = end.toISOString().split('T')[0];
+    const startInput = document.getElementById('adminExStartDate');
+    if (startInput) startInput.value = startStr;
+    const endInput = document.getElementById('adminExEndDate');
+    if (endInput) endInput.value = endStr;
+
+    const tzSel = document.getElementById('adminExTimezone');
+    if (tzSel) tzSel.value = 'Asia/Kolkata';
+    const tzLabel = document.getElementById('adminExTzLabel');
+    if (tzLabel) tzLabel.value = 'IST (UTC+5:30)';
+
+    const statusText = document.getElementById('exhibitionFormStatusText');
+    if (statusText) statusText.textContent = 'Setting up new exhibition';
+    const submitBtn = document.getElementById('saveExhibitionBtn');
+    if (submitBtn) submitBtn.textContent = 'Create & Activate Exhibition';
+
+    showToast('Add Exhibition', 'Enter exhibition details and click "Create & Activate Exhibition".', 'info');
+  }
+
+  function deleteCurrentExhibition() {
+    if (exhibitionsList.length <= 1) {
+      showToast('Action Denied', 'At least one exhibition must remain configured.', 'error');
+      return;
+    }
+    const ex = getCurrentExhibition();
+    if (confirm(`Are you sure you want to remove "${ex.title}" (${ex.id})?`)) {
+      exhibitionsList = exhibitionsList.filter(e => e.id !== currentExhibitionId);
+      localStorage.setItem('uo_exhibitions', JSON.stringify(exhibitionsList));
+      const nextEx = exhibitionsList[0];
+      populateExhibitionSelectors();
+      switchExhibition(nextEx.id, false);
+      showToast('Exhibition Removed', `Removed ${ex.title}. Active exhibition is now ${nextEx.title}.`, 'info');
+    }
+  }
+
+  function copyCurrentExhibitionLink() {
+    const ex = getCurrentExhibition();
+    const s = salesmen.find(x => x.id === currentSalesmanId);
+    let link = `${window.location.origin}${window.location.pathname}?ex=${currentExhibitionId}`;
+    if (isSalesmanLocked && s) {
+      link += `&s=${getSlug(s.name)}`;
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(link).then(() => {
+        showToast('Link Copied!', `Direct booking link for ${ex.title} copied to clipboard.`, 'info');
+      }).catch(() => {
+        prompt('Direct Booking Link for ' + ex.title, link);
+      });
+    } else {
+      prompt('Direct Booking Link for ' + ex.title, link);
+    }
+  }
+
   // ==========================================
   // APP INITIALIZATION
   // ==========================================
   function initApp() {
     initFromURL();
+    populateExhibitionSelectors();
     renderExhibition();
     populateSalesmanSelect();
     populateTimezoneSelect();
     renderSalesman();
     fetchBookings();
     setInterval(fetchBookings, 12000);
+
+    // Exhibition Selectors & Direct Link Listeners
+    const headerExSel = document.getElementById('headerExhibitionSelect');
+    if (headerExSel) {
+      headerExSel.addEventListener('change', (e) => switchExhibition(e.target.value, true));
+    }
+
+    const mainExSel = document.getElementById('mainExhibitionSelect');
+    if (mainExSel) {
+      mainExSel.addEventListener('change', (e) => switchExhibition(e.target.value, true));
+    }
+
+    const copyExBtn = document.getElementById('copyExhibitionLinkBtn');
+    if (copyExBtn) {
+      copyExBtn.addEventListener('click', copyCurrentExhibitionLink);
+    }
 
     // Visitor Timezone Selector Listener
     const tzSel = document.getElementById('userTimezoneSelect');
@@ -1621,13 +1831,20 @@
     const adminExSel = document.getElementById('adminExhibitionSelect');
     if (adminExSel) {
       adminExSel.addEventListener('change', (e) => {
-        currentExhibitionId = e.target.value;
-        localStorage.setItem('uo_current_exhibition', currentExhibitionId);
-        populateAdminExhibitionForm();
-        populateTimezoneSelect();
-        renderExhibition();
-        fetchBookings();
+        switchExhibition(e.target.value, false);
       });
+    }
+
+    // Add New Exhibition Button Listener (Admin Tab 4)
+    const addExBtn = document.getElementById('addNewExhibitionBtn');
+    if (addExBtn) {
+      addExBtn.addEventListener('click', prepareNewExhibitionForm);
+    }
+
+    // Delete Exhibition Button Listener (Admin Tab 4)
+    const delExBtn = document.getElementById('deleteExhibitionBtn');
+    if (delExBtn) {
+      delExBtn.addEventListener('click', deleteCurrentExhibition);
     }
 
     // Admin Exhibition Form Submit Listener
@@ -1636,36 +1853,65 @@
       exForm.addEventListener('submit', (e) => {
         e.preventDefault();
         const formData = new FormData(exForm);
-        const exIndex = exhibitionsList.findIndex(x => x.id === currentExhibitionId);
-        if (exIndex !== -1) {
-          exhibitionsList[exIndex].title = formData.get('exTitle');
-          exhibitionsList[exIndex].venue = formData.get('exVenue');
-          exhibitionsList[exIndex].location = formData.get('exLocation');
-          exhibitionsList[exIndex].startDate = formData.get('exStartDate');
-          exhibitionsList[exIndex].endDate = formData.get('exEndDate');
+        const rawId = (formData.get('exId') || '').trim().toLowerCase().replace(/[^a-z0-9_-]+/g, '-');
+        const exId = rawId || `exhibition-${Date.now()}`;
+        const isNew = exForm.dataset.isNew === 'true';
+        const editingId = exForm.dataset.editingId || currentExhibitionId;
+        const newTz = formData.get('exTimezone') || 'Asia/Kolkata';
+        const customLabel = (formData.get('exTzLabel') || '').trim();
+        const resolvedLabel = customLabel || `${getVenueTimezoneAbbr(newTz)} (${getTimezoneOffsetString(newTz)})`;
 
-          const newTz = formData.get('exTimezone') || 'Asia/Kolkata';
-          exhibitionsList[exIndex].timezone = newTz;
-          localStorage.setItem('uo_venue_tz_' + currentExhibitionId, newTz);
+        let targetIndex = exhibitionsList.findIndex(x => x.id === editingId);
 
-          const customLabel = (formData.get('exTzLabel') || '').trim();
-          if (customLabel) {
-            exhibitionsList[exIndex].tzLabel = customLabel;
-          } else {
-            const vAbbr = getVenueTimezoneAbbr(newTz);
-            exhibitionsList[exIndex].tzLabel = `${vAbbr} (${getTimezoneOffsetString(newTz)})`;
+        if (isNew || targetIndex === -1) {
+          if (exhibitionsList.some(x => x.id === exId)) {
+            showToast('Slug Exists', `An exhibition with ID "${exId}" already exists. Please choose a unique slug.`, 'error');
+            return;
           }
-
-          localStorage.setItem('uo_exhibitions', JSON.stringify(exhibitionsList));
-          
-          populateTimezoneSelect();
-          renderExhibition();
-          populateAdminExhibitionForm();
-          renderSlots();
-          updateDateSubheading();
-          updateClock();
-          showToast('Exhibition Updated', `Saved settings for ${exhibitionsList[exIndex].title} (Venue: ${newTz}).`, 'success');
+          const newEx = {
+            id: exId,
+            title: formData.get('exTitle'),
+            venue: formData.get('exVenue'),
+            location: formData.get('exLocation'),
+            startDate: formData.get('exStartDate'),
+            endDate: formData.get('exEndDate'),
+            timezone: newTz,
+            tzLabel: resolvedLabel
+          };
+          exhibitionsList.push(newEx);
+          currentExhibitionId = exId;
+          exForm.dataset.isNew = 'false';
+          exForm.dataset.editingId = exId;
+        } else {
+          if (exId !== editingId && exhibitionsList.some(x => x.id === exId)) {
+            showToast('Slug Exists', `An exhibition with ID "${exId}" already exists. Please choose a unique slug.`, 'error');
+            return;
+          }
+          exhibitionsList[targetIndex].id = exId;
+          exhibitionsList[targetIndex].title = formData.get('exTitle');
+          exhibitionsList[targetIndex].venue = formData.get('exVenue');
+          exhibitionsList[targetIndex].location = formData.get('exLocation');
+          exhibitionsList[targetIndex].startDate = formData.get('exStartDate');
+          exhibitionsList[targetIndex].endDate = formData.get('exEndDate');
+          exhibitionsList[targetIndex].timezone = newTz;
+          exhibitionsList[targetIndex].tzLabel = resolvedLabel;
+          currentExhibitionId = exId;
+          exForm.dataset.editingId = exId;
         }
+
+        localStorage.setItem('uo_venue_tz_' + currentExhibitionId, newTz);
+        localStorage.setItem('uo_exhibitions', JSON.stringify(exhibitionsList));
+        localStorage.setItem('uo_current_exhibition', currentExhibitionId);
+
+        populateExhibitionSelectors();
+        populateTimezoneSelect();
+        renderExhibition();
+        populateAdminExhibitionForm();
+        renderSlots();
+        updateDateSubheading();
+        updateClock();
+        fetchBookings();
+        showToast('Exhibition Saved', `Saved and activated "${formData.get('exTitle')}".`, 'success');
       });
     }
 
@@ -1767,6 +2013,9 @@
         document.querySelectorAll('#adminModal .tab-content').forEach(c => c.classList.add('hidden'));
         e.currentTarget.classList.add('active');
         document.getElementById(e.currentTarget.dataset.tab).classList.remove('hidden');
+        if (e.currentTarget.dataset.tab === 'tabExhibitions') {
+          populateAdminExhibitionForm();
+        }
       });
     });
 
@@ -2814,33 +3063,54 @@
     if (!ex) return;
     
     const sel = document.getElementById('adminExhibitionSelect');
-    sel.innerHTML = exhibitionsList.map(e => `<option value="${e.id}" ${e.id === currentExhibitionId ? 'selected' : ''}>${e.title}</option>`).join('');
+    if (sel) {
+      sel.innerHTML = exhibitionsList.map(e => `<option value="${e.id}" ${e.id === currentExhibitionId ? 'selected' : ''}>${e.title} (${e.id})</option>`).join('');
+      sel.value = currentExhibitionId;
+    }
     
     const form = document.getElementById('exhibitionForm');
-    form.exTitle.value = ex.title;
-    form.exVenue.value = ex.venue;
-    form.exLocation.value = ex.location;
-    form.exStartDate.value = ex.startDate;
-    form.exEndDate.value = ex.endDate;
+    if (form) {
+      form.dataset.isNew = 'false';
+      form.dataset.editingId = ex.id;
+      const idInput = document.getElementById('adminExId');
+      if (idInput) {
+        idInput.value = ex.id;
+      }
+      const titleInput = document.getElementById('adminExTitle');
+      if (titleInput) titleInput.value = ex.title;
+      const venueInput = document.getElementById('adminExVenue');
+      if (venueInput) venueInput.value = ex.venue;
+      const locInput = document.getElementById('adminExLocation');
+      if (locInput) locInput.value = ex.location;
+      const startInput = document.getElementById('adminExStartDate');
+      if (startInput) startInput.value = ex.startDate;
+      const endInput = document.getElementById('adminExEndDate');
+      if (endInput) endInput.value = ex.endDate;
 
-    const tzSel = document.getElementById('adminExTimezone');
-    if (tzSel) {
-      const currentTz = ex.timezone || getVenueTimezone();
-      let optHtml = '';
-      SUPPORTED_TIMEZONES.forEach(group => {
-        optHtml += `<optgroup label="${group.group}">`;
-        group.zones.forEach(z => {
-          const isSel = (z.value === currentTz) ? 'selected' : '';
-          optHtml += `<option value="${z.value}" ${isSel}>${z.label}</option>`;
+      const tzSel = document.getElementById('adminExTimezone');
+      if (tzSel) {
+        const currentTz = ex.timezone || getVenueTimezone();
+        let optHtml = '';
+        SUPPORTED_TIMEZONES.forEach(group => {
+          optHtml += `<optgroup label="${group.group}">`;
+          group.zones.forEach(z => {
+            const isSel = (z.value === currentTz) ? 'selected' : '';
+            optHtml += `<option value="${z.value}" ${isSel}>${z.label}</option>`;
+          });
+          optHtml += `</optgroup>`;
         });
-        optHtml += `</optgroup>`;
-      });
-      tzSel.innerHTML = optHtml;
-    }
+        tzSel.innerHTML = optHtml;
+      }
 
-    const tzLabelInput = document.getElementById('adminExTzLabel');
-    if (tzLabelInput) {
-      tzLabelInput.value = ex.tzLabel || '';
+      const tzLabelInput = document.getElementById('adminExTzLabel');
+      if (tzLabelInput) {
+        tzLabelInput.value = ex.tzLabel || '';
+      }
+
+      const statusText = document.getElementById('exhibitionFormStatusText');
+      if (statusText) statusText.textContent = `Managing: ${ex.title}`;
+      const submitBtn = document.getElementById('saveExhibitionBtn');
+      if (submitBtn) submitBtn.textContent = 'Save Exhibition Settings';
     }
   }
 
