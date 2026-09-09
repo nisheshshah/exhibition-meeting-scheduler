@@ -195,19 +195,39 @@
           </div>
 
           <!-- Timezone & Dual Time Control Toolbar -->
-          <div class="bg-gradient-to-r from-amber-50/70 to-orange-50/50 border border-[var(--border)] rounded-xl p-3 sm:p-3.5 mb-6 flex flex-wrap items-center justify-between gap-3 shadow-sm">
-            <div class="flex items-center gap-2 flex-1 min-w-[220px]">
-              <i class="fa-solid fa-earth-americas text-[var(--accent)] text-sm"></i>
-              <span class="text-xs font-semibold text-[var(--fg-2)] whitespace-nowrap">Time Zone:</span>
-              <select id="userTimezoneSelect" class="input py-1 px-2.5 text-xs font-medium bg-white rounded-lg flex-1 max-w-xs cursor-pointer shadow-sm"></select>
+          <div class="bg-gradient-to-r from-amber-50/70 to-orange-50/50 border border-[var(--border)] rounded-xl p-3 sm:p-3.5 mb-6 space-y-3 shadow-sm">
+            <div class="flex flex-wrap items-center justify-between gap-3">
+              <!-- Venue Time Zone Selector -->
+              <div class="flex items-center gap-2 flex-1 min-w-[240px]">
+                <span class="inline-flex items-center justify-center w-6 h-6 rounded-md bg-amber-200/70 text-amber-900 text-xs font-bold" title="Physical Exhibition Venue Location">
+                  <i class="fa-solid fa-location-dot"></i>
+                </span>
+                <span class="text-xs font-semibold text-[var(--fg-2)] whitespace-nowrap">Venue Time Zone:</span>
+                <select id="venueTimezoneSelect" class="input py-1 px-2.5 text-xs font-medium bg-white rounded-lg flex-1 max-w-xs cursor-pointer shadow-sm"></select>
+              </div>
+
+              <!-- Visitor Time Zone Selector -->
+              <div class="flex items-center gap-2 flex-1 min-w-[240px]">
+                <span class="inline-flex items-center justify-center w-6 h-6 rounded-md bg-emerald-100 text-emerald-800 text-xs font-bold" title="Your Local Timezone">
+                  <i class="fa-solid fa-earth-americas"></i>
+                </span>
+                <span class="text-xs font-semibold text-[var(--fg-2)] whitespace-nowrap">Your Time Zone:</span>
+                <select id="userTimezoneSelect" class="input py-1 px-2.5 text-xs font-medium bg-white rounded-lg flex-1 max-w-xs cursor-pointer shadow-sm"></select>
+              </div>
             </div>
-            <div class="flex items-center gap-2 sm:gap-3 flex-wrap">
-              <button id="dualTimeToggleBtn" type="button" class="px-3 py-1.5 rounded-lg text-xs font-semibold border border-[var(--border)] bg-white hover:bg-[var(--accent-glow)] transition flex items-center gap-1.5 shadow-sm">
-                <i class="fa-solid fa-clock-rotate-left text-[var(--accent)]"></i>
-                <span id="dualTimeToggleText">Dual Time: ON</span>
-              </button>
-              <div id="tzComparisonBadge" class="inline-flex items-center px-2.5 py-1 rounded-md text-[11px] font-medium bg-white/90 text-[var(--fg-2)] border border-[var(--border)]">
-                <span id="tzComparisonText">Venue (IST) ⇄ You</span>
+
+            <div class="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-amber-200/50">
+              <div class="flex items-center gap-2">
+                <button id="dualTimeToggleBtn" type="button" class="px-3 py-1.5 rounded-lg text-xs font-semibold border border-[var(--border)] bg-white hover:bg-[var(--accent-glow)] transition flex items-center gap-1.5 shadow-sm">
+                  <i class="fa-solid fa-clock-rotate-left text-[var(--accent)]"></i>
+                  <span id="dualTimeToggleText">Dual Time: ON</span>
+                </button>
+                <div id="tzComparisonBadge" class="inline-flex items-center px-2.5 py-1 rounded-md text-[11px] font-medium bg-white/90 text-[var(--fg-2)] border border-[var(--border)]">
+                  <span id="tzComparisonText">Venue (IST) ⇄ You</span>
+                </div>
+              </div>
+              <div class="text-[11px] text-[var(--muted)] font-medium">
+                Times automatically convert to your local zone
               </div>
             </div>
           </div>
@@ -567,6 +587,17 @@
             <div><label class="text-[10px] uppercase tracking-[2px] text-[var(--muted)] mb-1 block">Stall / Location</label><input type="text" name="exLocation" class="input text-xs" value="Stall 3D38, Hall 3" required></div>
             <div><label class="text-[10px] uppercase tracking-[2px] text-[var(--muted)] mb-1 block">Start Date</label><input type="date" name="exStartDate" class="input text-xs" value="2026-08-26" required></div>
             <div><label class="text-[10px] uppercase tracking-[2px] text-[var(--muted)] mb-1 block">End Date</label><input type="date" name="exEndDate" class="input text-xs" value="2026-08-28" required></div>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label class="text-[10px] uppercase tracking-[2px] text-[var(--muted)] mb-1 block">Venue Time Zone</label>
+              <select name="exTimezone" id="adminExTimezone" class="input text-xs cursor-pointer" required></select>
+            </div>
+            <div>
+              <label class="text-[10px] uppercase tracking-[2px] text-[var(--muted)] mb-1 block">Timezone Display Label (Optional)</label>
+              <input type="text" name="exTzLabel" id="adminExTzLabel" class="input text-xs" placeholder="Auto-generated e.g. GST (UTC+4:00)">
+            </div>
           </div>
 
           <div>
@@ -932,39 +963,104 @@
     }
   }
 
+  function getCurrentExhibition() {
+    return exhibitionsList.find(e => e.id === currentExhibitionId) || exhibitionsList[0];
+  }
+
+  function getVenueTimezone() {
+    const savedVenueTz = localStorage.getItem('uo_venue_tz_' + currentExhibitionId);
+    if (savedVenueTz) return savedVenueTz;
+    const ex = getCurrentExhibition();
+    if (ex && ex.timezone) return ex.timezone;
+    return 'Asia/Kolkata';
+  }
+
+  function getTimezoneOffsetString(tz) {
+    try {
+      const parts = new Intl.DateTimeFormat('en-US', { timeZone: tz, timeZoneName: 'longOffset' }).formatToParts(new Date());
+      const offsetPart = parts.find(p => p.type === 'timeZoneName');
+      if (offsetPart && offsetPart.value) {
+        return offsetPart.value.replace('GMT', 'UTC');
+      }
+    } catch(e) {}
+    return 'UTC';
+  }
+
+  function getVenueTimezoneAbbr(tz) {
+    const venueTz = tz || getVenueTimezone();
+    const ex = getCurrentExhibition();
+    if (!tz && ex && ex.timezone === venueTz && ex.tzLabel) {
+      return ex.tzLabel.split(' ')[0];
+    }
+    try {
+      const parts = new Intl.DateTimeFormat('en-US', { timeZone: venueTz, timeZoneName: 'short' }).formatToParts(new Date());
+      return (parts.find(p => p.type === 'timeZoneName') || {}).value || venueTz.split('/').pop().replace(/_/g, ' ');
+    } catch(e) {
+      return 'IST';
+    }
+  }
+
   function populateTimezoneSelect() {
-    const sel = document.getElementById('userTimezoneSelect');
-    if (!sel) return;
+    const userSel = document.getElementById('userTimezoneSelect');
+    const venueSel = document.getElementById('venueTimezoneSelect');
+    const adminSel = document.getElementById('adminExTimezone');
+    const currentVenueTz = getVenueTimezone();
 
     let allZones = [];
     SUPPORTED_TIMEZONES.forEach(g => allZones.push(...g.zones));
     const isDetectedKnown = allZones.some(z => z.value === detectedUserTimezone);
 
-    let html = '';
-    if (!isDetectedKnown && detectedUserTimezone) {
-      html += `<optgroup label="Detected Time Zone">
-        <option value="${detectedUserTimezone}" ${userTimezone === detectedUserTimezone ? 'selected' : ''}>Local: ${detectedUserTimezone}</option>
-      </optgroup>`;
+    // 1. Populate Visitor Local Timezone Select
+    if (userSel) {
+      let userHtml = '';
+      if (!isDetectedKnown && detectedUserTimezone) {
+        userHtml += `<optgroup label="Detected Time Zone">
+          <option value="${detectedUserTimezone}" ${userTimezone === detectedUserTimezone ? 'selected' : ''}>Local: ${detectedUserTimezone} ★</option>
+        </optgroup>`;
+      }
+
+      SUPPORTED_TIMEZONES.forEach(group => {
+        userHtml += `<optgroup label="${group.group}">`;
+        group.zones.forEach(z => {
+          const isSel = (z.value === userTimezone) ? 'selected' : '';
+          const isDetectedTag = (z.value === detectedUserTimezone) ? ' ★' : '';
+          userHtml += `<option value="${z.value}" ${isSel}>${z.label}${isDetectedTag}</option>`;
+        });
+        userHtml += `</optgroup>`;
+      });
+      userSel.innerHTML = userHtml;
     }
 
-    SUPPORTED_TIMEZONES.forEach(group => {
-      html += `<optgroup label="${group.group}">`;
-      group.zones.forEach(z => {
-        const isSel = (z.value === userTimezone) ? 'selected' : '';
-        const isDetectedTag = (z.value === detectedUserTimezone) ? ' ★' : '';
-        html += `<option value="${z.value}" ${isSel}>${z.label}${isDetectedTag}</option>`;
+    // Helper for Venue & Admin Options
+    const buildVenueOptions = (selectedVal) => {
+      let optHtml = '';
+      SUPPORTED_TIMEZONES.forEach(group => {
+        optHtml += `<optgroup label="${group.group}">`;
+        group.zones.forEach(z => {
+          const isSel = (z.value === selectedVal) ? 'selected' : '';
+          optHtml += `<option value="${z.value}" ${isSel}>${z.label}</option>`;
+        });
+        optHtml += `</optgroup>`;
       });
-      html += `</optgroup>`;
-    });
+      return optHtml;
+    };
 
-    sel.innerHTML = html;
+    // 2. Populate Venue Timezone Select (Toolbar)
+    if (venueSel) {
+      venueSel.innerHTML = buildVenueOptions(currentVenueTz);
+    }
+
+    // 3. Populate Admin Exhibition Timezone Select
+    if (adminSel) {
+      adminSel.innerHTML = buildVenueOptions(currentVenueTz);
+    }
+
     updateTimezoneControlsUI();
   }
 
   function updateTimezoneControlsUI() {
-    const ex = exhibitionsList.find(e => e.id === currentExhibitionId) || exhibitionsList[0];
-    const venueTz = ex.timezone || 'Asia/Kolkata';
-    const venueTzAbbr = ex.tzLabel ? ex.tzLabel.split(' ')[0] : 'IST';
+    const venueTz = getVenueTimezone();
+    const venueTzAbbr = getVenueTimezoneAbbr(venueTz);
     
     const toggleBtn = document.getElementById('dualTimeToggleBtn');
     const toggleText = document.getElementById('dualTimeToggleText');
@@ -1298,7 +1394,7 @@
     fetchBookings();
     setInterval(fetchBookings, 12000);
 
-    // Timezone Selector Listener
+    // Visitor Timezone Selector Listener
     const tzSel = document.getElementById('userTimezoneSelect');
     if (tzSel) {
       tzSel.addEventListener('change', (e) => {
@@ -1309,6 +1405,35 @@
         updateDateSubheading();
         updateClock();
         showToast('Time Zone Updated', `Displaying times in ${userTimezone.split('/').pop().replace(/_/g, ' ')}.`, 'info');
+      });
+    }
+
+    // Venue Timezone Selector Listener (Toolbar)
+    const venueTzSel = document.getElementById('venueTimezoneSelect');
+    if (venueTzSel) {
+      venueTzSel.addEventListener('change', (e) => {
+        const newVenueTz = e.target.value;
+        const exIndex = exhibitionsList.findIndex(x => x.id === currentExhibitionId);
+        if (exIndex !== -1) {
+          exhibitionsList[exIndex].timezone = newVenueTz;
+          const newAbbr = getVenueTimezoneAbbr(newVenueTz);
+          exhibitionsList[exIndex].tzLabel = `${newAbbr} (${getTimezoneOffsetString(newVenueTz)})`;
+          localStorage.setItem('uo_exhibitions', JSON.stringify(exhibitionsList));
+        }
+        localStorage.setItem('uo_venue_tz_' + currentExhibitionId, newVenueTz);
+        
+        // Synchronize admin form if open
+        const adminTzSel = document.getElementById('adminExTimezone');
+        if (adminTzSel) adminTzSel.value = newVenueTz;
+        const adminTzLabel = document.getElementById('adminExTzLabel');
+        if (adminTzLabel && exIndex !== -1) adminTzLabel.value = exhibitionsList[exIndex].tzLabel;
+
+        updateTimezoneControlsUI();
+        renderSlots();
+        updateDateSubheading();
+        updateClock();
+        const vAbbr = getVenueTimezoneAbbr(newVenueTz);
+        showToast('Venue Time Zone Set', `Exhibition venue time set to ${newVenueTz.split('/').pop().replace(/_/g, ' ')} (${vAbbr}).`, 'success');
       });
     }
 
@@ -1333,6 +1458,7 @@
         currentExhibitionId = e.target.value;
         localStorage.setItem('uo_current_exhibition', currentExhibitionId);
         populateAdminExhibitionForm();
+        populateTimezoneSelect();
         renderExhibition();
         fetchBookings();
       });
@@ -1351,11 +1477,28 @@
           exhibitionsList[exIndex].location = formData.get('exLocation');
           exhibitionsList[exIndex].startDate = formData.get('exStartDate');
           exhibitionsList[exIndex].endDate = formData.get('exEndDate');
+
+          const newTz = formData.get('exTimezone') || 'Asia/Kolkata';
+          exhibitionsList[exIndex].timezone = newTz;
+          localStorage.setItem('uo_venue_tz_' + currentExhibitionId, newTz);
+
+          const customLabel = (formData.get('exTzLabel') || '').trim();
+          if (customLabel) {
+            exhibitionsList[exIndex].tzLabel = customLabel;
+          } else {
+            const vAbbr = getVenueTimezoneAbbr(newTz);
+            exhibitionsList[exIndex].tzLabel = `${vAbbr} (${getTimezoneOffsetString(newTz)})`;
+          }
+
           localStorage.setItem('uo_exhibitions', JSON.stringify(exhibitionsList));
           
+          populateTimezoneSelect();
           renderExhibition();
           populateAdminExhibitionForm();
-          showToast('Exhibition Updated', 'The main page details have been updated successfully.', 'success');
+          renderSlots();
+          updateDateSubheading();
+          updateClock();
+          showToast('Exhibition Updated', `Saved settings for ${exhibitionsList[exIndex].title} (Venue: ${newTz}).`, 'success');
         }
       });
     }
@@ -1492,12 +1635,32 @@
     let sParam = null;
     let adminParam = null;
     let viewParam = null;
+    let venueTzParam = null;
+    let exParam = null;
 
     for (const [key, val] of urlParams.entries()) {
       const k = key.toLowerCase();
       if (k === 's' || k === 'id' || k === 'name' || k === 'rep') sParam = val;
       if (k === 'admin' || k === 'mode') adminParam = val;
       if (k === 'view' || k === 'schedule') viewParam = val;
+      if (k === 'venwetz' || k === 'venutz' || k === 'tz' || k === 'venuetimzone' || k === 'vtz' || k === 'venuetemp') venueTzParam = val;
+      if (k === 'ex' || k === 'exhibition') exParam = val;
+    }
+
+    if (exParam) {
+      const foundEx = exhibitionsList.find(e => e.id.toLowerCase() === exParam.toLowerCase());
+      if (foundEx) {
+        currentExhibitionId = foundEx.id;
+        localStorage.setItem('uo_current_exhibition', currentExhibitionId);
+      }
+    }
+
+    if (venueTzParam) {
+      localStorage.setItem('uo_venue_tz_' + currentExhibitionId, venueTzParam);
+      const exIndex = exhibitionsList.findIndex(x => x.id === currentExhibitionId);
+      if (exIndex !== -1) {
+        exhibitionsList[exIndex].timezone = venueTzParam;
+      }
     }
 
     if (sParam) {
@@ -1724,9 +1887,9 @@
       return;
     }
 
-    const ex = exhibitionsList.find(e => e.id === currentExhibitionId) || exhibitionsList[0];
-    const venueTz = ex.timezone || 'Asia/Kolkata';
-    const venueTzAbbr = ex.tzLabel ? ex.tzLabel.split(' ')[0] : 'IST';
+    const ex = getCurrentExhibition();
+    const venueTz = getVenueTimezone();
+    const venueTzAbbr = getVenueTimezoneAbbr(venueTz);
 
     const s = salesmen.find(x => x.id === currentSalesmanId) || { name: currentSalesmanId };
     title.textContent = `${s.name}'s Private Meeting Roster`;
@@ -1856,9 +2019,9 @@
 
   function updateDateSubheading() {
     const d = dates.find(x => x.value === currentDate);
-    const ex = exhibitionsList.find(e => e.id === currentExhibitionId) || exhibitionsList[0];
-    const venueTz = ex.timezone || 'Asia/Kolkata';
-    const venueTzAbbr = ex.tzLabel ? ex.tzLabel.split(' ')[0] : 'IST';
+    const ex = getCurrentExhibition();
+    const venueTz = getVenueTimezone();
+    const venueTzAbbr = getVenueTimezoneAbbr(venueTz);
     if (d) {
       let sub = `${d.weekday}, ${d.day} ${d.monthFull} · 9:00 AM – 5:00 PM ${venueTzAbbr} (Venue)`;
       if (isDualTimezone && userTimezone !== venueTz) {
@@ -1877,9 +2040,9 @@
     const userBookings = getUserBookings();
     let totalBooked = 0;
 
-    const ex = exhibitionsList.find(e => e.id === currentExhibitionId) || exhibitionsList[0];
-    const venueTz = ex.timezone || 'Asia/Kolkata';
-    const venueTzAbbr = ex.tzLabel ? ex.tzLabel.split(' ')[0] : 'IST';
+    const ex = getCurrentExhibition();
+    const venueTz = getVenueTimezone();
+    const venueTzAbbr = getVenueTimezoneAbbr(venueTz);
     const showDual = isDualTimezone && (userTimezone !== venueTz);
 
     for (let h = 9; h <= 16; h++) {
@@ -1950,9 +2113,9 @@
     const userBookings = getUserBookings();
     const section = document.getElementById('myBookingSection');
     const content = document.getElementById('myBookingContent');
-    const ex = exhibitionsList.find(e => e.id === currentExhibitionId) || exhibitionsList[0];
-    const venueTz = ex.timezone || 'Asia/Kolkata';
-    const venueTzAbbr = ex.tzLabel ? ex.tzLabel.split(' ')[0] : 'IST';
+    const ex = getCurrentExhibition();
+    const venueTz = getVenueTimezone();
+    const venueTzAbbr = getVenueTimezoneAbbr(venueTz);
 
     const myBookings = Object.keys(userBookings).map(key => {
       const [sid, date, time] = key.split('_');
@@ -1989,9 +2152,9 @@
     selectedSlot = { value: slotValue, label: slotLabel };
     const d = dates.find(x => x.value === currentDate);
     const s = salesmen.find(x => x.id === currentSalesmanId);
-    const ex = exhibitionsList.find(e => e.id === currentExhibitionId) || exhibitionsList[0];
-    const venueTz = ex.timezone || 'Asia/Kolkata';
-    const venueTzAbbr = ex.tzLabel ? ex.tzLabel.split(' ')[0] : 'IST';
+    const ex = getCurrentExhibition();
+    const venueTz = getVenueTimezone();
+    const venueTzAbbr = getVenueTimezoneAbbr(venueTz);
 
     let timeLabelText = `${slotLabel} ${venueTzAbbr}`;
     if (isDualTimezone && userTimezone !== venueTz) {
@@ -2134,9 +2297,9 @@
   }
 
   function buildGoogleCalendarURL(booking, date, time, salesman) {
-    const ex = exhibitionsList.find(e => e.id === currentExhibitionId) || exhibitionsList[0];
-    const venueTz = ex.timezone || 'Asia/Kolkata';
-    const venueTzAbbr = ex.tzLabel ? ex.tzLabel.split(' ')[0] : 'IST';
+    const ex = getCurrentExhibition();
+    const venueTz = getVenueTimezone();
+    const venueTzAbbr = getVenueTimezoneAbbr(venueTz);
     const conv = getTimeInTimezone(date, time, venueTz, 'UTC');
     const start = conv.trueUtcDate;
     const end = new Date(start.getTime() + 15 * 60000);
@@ -2156,9 +2319,9 @@
   function showSuccess(date, time, salesman, ref, booking) {
     const d = dates.find(x => x.value === date);
     const slot = timeSlots.find(s => s.value === time);
-    const ex = exhibitionsList.find(e => e.id === currentExhibitionId) || exhibitionsList[0];
-    const venueTz = ex.timezone || 'Asia/Kolkata';
-    const venueTzAbbr = ex.tzLabel ? ex.tzLabel.split(' ')[0] : 'IST';
+    const ex = getCurrentExhibition();
+    const venueTz = getVenueTimezone();
+    const venueTzAbbr = getVenueTimezoneAbbr(venueTz);
 
     document.getElementById('successDate').textContent = `${d.day} ${d.month}`;
     document.getElementById('successTime').textContent = `${slot.label} ${venueTzAbbr}`;
@@ -2202,9 +2365,9 @@
   }
 
   function downloadICS(booking, date, time, salesman) {
-    const ex = exhibitionsList.find(e => e.id === currentExhibitionId) || exhibitionsList[0];
-    const venueTz = ex.timezone || 'Asia/Kolkata';
-    const venueTzAbbr = ex.tzLabel ? ex.tzLabel.split(' ')[0] : 'IST';
+    const ex = getCurrentExhibition();
+    const venueTz = getVenueTimezone();
+    const venueTzAbbr = getVenueTimezoneAbbr(venueTz);
     const conv = getTimeInTimezone(date, time, venueTz, 'UTC');
     const start = conv.trueUtcDate;
     const end = new Date(start.getTime() + 15 * 60000);
@@ -2241,7 +2404,7 @@
   // ADMIN & REPORTS MANAGEMENT
   // ==========================================
   function populateAdminExhibitionForm() {
-    const ex = exhibitionsList.find(e => e.id === currentExhibitionId) || exhibitionsList[0];
+    const ex = getCurrentExhibition();
     if (!ex) return;
     
     const sel = document.getElementById('adminExhibitionSelect');
@@ -2253,6 +2416,26 @@
     form.exLocation.value = ex.location;
     form.exStartDate.value = ex.startDate;
     form.exEndDate.value = ex.endDate;
+
+    const tzSel = document.getElementById('adminExTimezone');
+    if (tzSel) {
+      const currentTz = ex.timezone || getVenueTimezone();
+      let optHtml = '';
+      SUPPORTED_TIMEZONES.forEach(group => {
+        optHtml += `<optgroup label="${group.group}">`;
+        group.zones.forEach(z => {
+          const isSel = (z.value === currentTz) ? 'selected' : '';
+          optHtml += `<option value="${z.value}" ${isSel}>${z.label}</option>`;
+        });
+        optHtml += `</optgroup>`;
+      });
+      tzSel.innerHTML = optHtml;
+    }
+
+    const tzLabelInput = document.getElementById('adminExTzLabel');
+    if (tzLabelInput) {
+      tzLabelInput.value = ex.tzLabel || '';
+    }
   }
 
   function openAdminModal(isVerified = false) {
@@ -2511,9 +2694,9 @@
   }
 
   function updateClock() {
-    const ex = exhibitionsList.find(e => e.id === currentExhibitionId) || exhibitionsList[0];
-    const venueTz = ex.timezone || 'Asia/Kolkata';
-    const venueTzAbbr = ex.tzLabel ? ex.tzLabel.split(' ')[0] : 'IST';
+    const ex = getCurrentExhibition();
+    const venueTz = getVenueTimezone();
+    const venueTzAbbr = getVenueTimezoneAbbr(venueTz);
     const now = new Date();
 
     // 1. Update Venue Live Clock
