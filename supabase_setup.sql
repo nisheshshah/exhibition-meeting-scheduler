@@ -94,10 +94,12 @@ CREATE TABLE IF NOT EXISTS public.bookings (
     checked_in_at TIMESTAMP WITH TIME ZONE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
     
-    CONSTRAINT fk_booking_exhibition FOREIGN KEY (exhibition_id) REFERENCES public.exhibitions(id) ON DELETE CASCADE,
-    CONSTRAINT fk_booking_salesman FOREIGN KEY (salesman_id) REFERENCES public.salesmen(id) ON DELETE CASCADE,
     CONSTRAINT unique_salesman_slot UNIQUE (exhibition_id, salesman_id, date, time)
 );
+
+-- Future-Proof Freedom: Drop foreign key constraints on bookings so arbitrary exhibitions and salesmen can be booked without relational lockouts
+ALTER TABLE public.bookings DROP CONSTRAINT IF EXISTS fk_booking_exhibition;
+ALTER TABLE public.bookings DROP CONSTRAINT IF EXISTS fk_booking_salesman;
 
 -- Idempotent column additions for existing bookings tables
 ALTER TABLE public.bookings ADD COLUMN IF NOT EXISTS lead_tier VARCHAR(10) DEFAULT 'UNASSIGNED';
@@ -124,19 +126,41 @@ ALTER TABLE public.exhibition_team ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.bookings ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "Allow public read access on salesmen" ON public.salesmen;
+DROP POLICY IF EXISTS "Allow public insert on salesmen" ON public.salesmen;
+DROP POLICY IF EXISTS "Allow public update on salesmen" ON public.salesmen;
+DROP POLICY IF EXISTS "Allow public delete on salesmen" ON public.salesmen;
+
 DROP POLICY IF EXISTS "Allow public read access on exhibitions" ON public.exhibitions;
 DROP POLICY IF EXISTS "Allow public insert on exhibitions" ON public.exhibitions;
 DROP POLICY IF EXISTS "Allow public update on exhibitions" ON public.exhibitions;
+DROP POLICY IF EXISTS "Allow public delete on exhibitions" ON public.exhibitions;
+
 DROP POLICY IF EXISTS "Allow public read access on exhibition_team" ON public.exhibition_team;
+DROP POLICY IF EXISTS "Allow public insert on exhibition_team" ON public.exhibition_team;
+DROP POLICY IF EXISTS "Allow public update on exhibition_team" ON public.exhibition_team;
+DROP POLICY IF EXISTS "Allow public delete on exhibition_team" ON public.exhibition_team;
+
 DROP POLICY IF EXISTS "Allow public read access on bookings" ON public.bookings;
 DROP POLICY IF EXISTS "Allow public insert on bookings" ON public.bookings;
 DROP POLICY IF EXISTS "Allow public update on bookings" ON public.bookings;
+DROP POLICY IF EXISTS "Allow public delete on bookings" ON public.bookings;
 
 CREATE POLICY "Allow public read access on salesmen" ON public.salesmen FOR SELECT USING (true);
+CREATE POLICY "Allow public insert on salesmen" ON public.salesmen FOR INSERT WITH CHECK (true);
+CREATE POLICY "Allow public update on salesmen" ON public.salesmen FOR UPDATE USING (true);
+CREATE POLICY "Allow public delete on salesmen" ON public.salesmen FOR DELETE USING (true);
+
 CREATE POLICY "Allow public read access on exhibitions" ON public.exhibitions FOR SELECT USING (true);
 CREATE POLICY "Allow public insert on exhibitions" ON public.exhibitions FOR INSERT WITH CHECK (true);
 CREATE POLICY "Allow public update on exhibitions" ON public.exhibitions FOR UPDATE USING (true);
+CREATE POLICY "Allow public delete on exhibitions" ON public.exhibitions FOR DELETE USING (true);
+
 CREATE POLICY "Allow public read access on exhibition_team" ON public.exhibition_team FOR SELECT USING (true);
+CREATE POLICY "Allow public insert on exhibition_team" ON public.exhibition_team FOR INSERT WITH CHECK (true);
+CREATE POLICY "Allow public update on exhibition_team" ON public.exhibition_team FOR UPDATE USING (true);
+CREATE POLICY "Allow public delete on exhibition_team" ON public.exhibition_team FOR DELETE USING (true);
+
 CREATE POLICY "Allow public read access on bookings" ON public.bookings FOR SELECT USING (true);
 CREATE POLICY "Allow public insert on bookings" ON public.bookings FOR INSERT WITH CHECK (true);
 CREATE POLICY "Allow public update on bookings" ON public.bookings FOR UPDATE USING (true);
+CREATE POLICY "Allow public delete on bookings" ON public.bookings FOR DELETE USING (true);
