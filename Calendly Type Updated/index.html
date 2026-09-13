@@ -907,6 +907,12 @@
 
   let salesmen = getSalesmen();
 
+  function getSalesmanName(id) {
+    if (!id) return '';
+    const s = salesmen.find(x => x.id === id || getSlug(x.name) === String(id).toLowerCase() || (x.name && x.name.toLowerCase() === String(id).toLowerCase()));
+    return s ? s.name : id;
+  }
+
   function saveSalesmenList(newList) {
     salesmen = newList;
     localStorage.setItem('uo_salesmen', JSON.stringify(salesmen));
@@ -1010,6 +1016,36 @@
     catch (e) { return {}; }
   }
   function setUserBookings(data) { localStorage.setItem('uo_user_bookings', JSON.stringify(data)); }
+
+  function getRecentBookings() {
+    try {
+      const stored = JSON.parse(localStorage.getItem('uo_recent_bookings') || '{}');
+      const now = Date.now();
+      const valid = {};
+      for (const [ref, info] of Object.entries(stored)) {
+        // 5 minute TTL (300,000 ms) to bridge cloud database sync and background polling
+        if (info && (now - (info.timestamp || 0) < 300000)) {
+          valid[ref] = info;
+        }
+      }
+      return valid;
+    } catch(e) { return {}; }
+  }
+  function setRecentBookings(data) {
+    try { localStorage.setItem('uo_recent_bookings', JSON.stringify(data)); } catch(e) {}
+  }
+  function addRecentBooking(ref, info) {
+    const recents = getRecentBookings();
+    recents[ref] = { ...info, timestamp: Date.now() };
+    setRecentBookings(recents);
+  }
+  function removeRecentBooking(ref) {
+    const recents = getRecentBookings();
+    const baseRef = (ref || '').split('-P')[0];
+    delete recents[ref];
+    delete recents[baseRef];
+    setRecentBookings(recents);
+  }
 
   const defaultExhibitionsList = [
     { 
@@ -1454,20 +1490,33 @@
     const cleanData = Array.from(latestMap.values());
     rawBookingsList = cleanData;
 
-    // --- AUTOMATIC LOCAL STORAGE CACHE PURGE ---
-    // Remove stale keys from localStorage.uo_user_bookings whose references are cancelled or deleted
+    // --- AUTOMATIC LOCAL STORAGE CACHE PURGE WITH RECENT GRACE PERIOD ---
+    // Remove stale keys from localStorage.uo_user_bookings whose references are cancelled or deleted remotely,
+    // while protecting newly placed bookings within the 5-minute confirmation grace window.
     try {
       const userBookings = getUserBookings();
       const validRefs = new Set(cleanData.map(b => b.ref));
+      const recentBookings = getRecentBookings();
       let changed = false;
 
       for (const [key, ref] of Object.entries(userBookings)) {
-        if (!validRefs.has(ref)) {
-          delete userBookings[key];
-          changed = true;
+        const baseRef = (ref || '').split('-P')[0];
+        // If reference is confirmed by server data, clear it from pending recentBookings
+        if (validRefs.has(ref) || validRefs.has(baseRef)) {
+          if (recentBookings[baseRef]) delete recentBookings[baseRef];
+          if (recentBookings[ref]) delete recentBookings[ref];
+          continue;
         }
+        // If booking is within recent grace period, keep it intact
+        if (recentBookings[baseRef] || recentBookings[ref]) {
+          continue;
+        }
+        // Otherwise, it was confirmed deleted/cancelled on remote, so clean it up
+        delete userBookings[key];
+        changed = true;
       }
 
+      setRecentBookings(recentBookings);
       if (changed) {
         setUserBookings(userBookings);
       }
@@ -1501,6 +1550,54 @@
       }
     });
 
+    // Merge recent local bookings that are in-flight or waiting for cloud sync
+    try {
+      const activeRecents = getRecentBookings();
+      Object.values(activeRecents).forEach(rec => {
+        const sObj = salesmen.find(s => s.id === currentSalesmanId);
+        const sSlug = sObj ? getSlug(sObj.name) : '';
+        const sNameLower = sObj ? sObj.name.toLowerCase() : '';
+        const bSidLower = (rec.salesmanId || '').toLowerCase();
+        const bSnameLower = (rec.salesmanName || '').toLowerCase();
+
+        const isMatch = (
+          bSidLower === currentSalesmanId.toLowerCase() ||
+          (sSlug && bSidLower === sSlug) ||
+          (sNameLower && bSnameLower.includes(sNameLower)) ||
+          (sNameLower && sNameLower.includes(bSidLower))
+        );
+
+        if (isMatch && rec.date) {
+          const dur = rec.duration || 15;
+          const slots = rec.slots || getConsecutiveSlots(rec.time, dur);
+          slots.forEach((slotTime, idx) => {
+            const nDate = normalizeDate(rec.date);
+            const nTime = normalizeTime(slotTime);
+            const key = `${nDate}_${nTime}`;
+            if (!currentBookings[key]) {
+              const partRef = idx === 0 ? rec.ref : `${rec.ref}-P${idx + 1}`;
+              currentBookings[key] = {
+                ref: partRef,
+                primaryRef: rec.ref,
+                exhibitionId: rec.exhibitionId || currentExhibitionId,
+                salesmanId: rec.salesmanId,
+                salesmanName: rec.salesmanName || getSalesmanName(rec.salesmanId),
+                date: nDate,
+                time: nTime,
+                firstName: rec.firstName,
+                lastName: rec.lastName,
+                company: rec.company,
+                email: rec.email,
+                phone: rec.phone,
+                duration: dur,
+                status: 'confirmed'
+              };
+            }
+          });
+        }
+      });
+    } catch(e) { console.warn("Recent bookings merge warning:", e); }
+
     renderSlots();
     renderMyBookings();
     renderSalesmanSchedule();
@@ -1512,32 +1609,50 @@
     const slotsToBook = booking.slots || getConsecutiveSlots(time, duration);
     const primaryRef = booking.ref;
 
-    const params = new URLSearchParams({
-      action: 'book',
+    // Track recently confirmed booking locally to prevent race conditions during background sync
+    addRecentBooking(primaryRef, {
+      ...booking,
+      ref: primaryRef,
       exhibitionId: currentExhibitionId,
       salesmanId: currentSalesmanId,
       salesmanName: salesmen.find(s => s.id === currentSalesmanId)?.name || currentSalesmanId,
       date: date,
       time: time,
       duration: duration,
-      slotCount: slotsToBook.length,
-      slots: slotsToBook.join(','),
-      firstName: booking.firstName,
-      lastName: booking.lastName,
-      company: booking.company,
-      email: booking.email,
-      phone: booking.phone,
-      ref: primaryRef
+      slots: slotsToBook
     });
 
-    // Fire Google Apps Script sync in background (triggers Google Sheets row write & confirmation email)
+    // Fire Google Apps Script sync for each consecutive 15-min lot
+    // (Prefix phone with single quote to prevent Google Sheets from interpreting '+' as formula)
     if (APPS_SCRIPT_URL) {
-      fetch(APPS_SCRIPT_URL + '?' + params.toString()).catch(err => {
-        console.warn("Background Google Apps Script warning:", err);
+      const phoneClean = (booking.phone || '').trim();
+      const phoneParam = phoneClean.startsWith('+') ? "'" + phoneClean : phoneClean;
+      slotsToBook.forEach((slotTime, idx) => {
+        const partRef = idx === 0 ? primaryRef : `${primaryRef}-P${idx + 1}`;
+        const params = new URLSearchParams({
+          action: 'book',
+          exhibitionId: currentExhibitionId,
+          salesmanId: currentSalesmanId,
+          salesmanName: salesmen.find(s => s.id === currentSalesmanId)?.name || currentSalesmanId,
+          date: date,
+          time: slotTime,
+          duration: duration,
+          slotCount: slotsToBook.length,
+          slots: slotsToBook.join(','),
+          firstName: booking.firstName,
+          lastName: booking.lastName,
+          company: booking.company,
+          email: booking.email,
+          phone: phoneParam,
+          ref: partRef
+        });
+        fetch(APPS_SCRIPT_URL + '?' + params.toString()).catch(err => {
+          console.warn("Background Google Apps Script slot sync error:", err);
+        });
       });
     }
 
-    // Direct Supabase database insertion (atomic multi-slot batch)
+    // Direct Supabase database insertion (atomic multi-slot batch via upsert)
     if (supabaseClient) {
       const rows = slotsToBook.map((slotTime, idx) => ({
         ref: idx === 0 ? primaryRef : `${primaryRef}-P${idx + 1}`,
@@ -1550,28 +1665,30 @@
         company: booking.company,
         email: booking.email,
         phone: booking.phone,
-        status: 'confirmed',
-        rep_notes: `Duration: ${duration} mins (${idx + 1}/${slotsToBook.length} lots)`
+        status: 'confirmed'
       }));
 
       return supabaseClient
         .from('bookings')
-        .insert(rows)
+        .upsert(rows, { onConflict: 'exhibition_id,salesman_id,date,time' })
         .then(({ error }) => {
           if (error) {
-            console.error("Supabase insert error:", error);
+            console.error("Supabase upsert error:", error);
             if (error.code === '23503') {
+              // Fallback for when exhibition_id is not yet in public.exhibitions
               const fallbackRows = rows.map(r => ({
                 ...r,
-                exhibition_id: 'fi-india-2026',
-                rep_notes: `[Exhibition: ${currentExhibitionId}] ${r.rep_notes || ''}`.trim()
+                exhibition_id: 'fi-india-2026'
               }));
-              return supabaseClient.from('bookings').insert(fallbackRows).then(({ error: err2 }) => {
-                if (err2 && (err2.code === '23505' || (err2.message && err2.message.includes('unique')))) {
-                  return { status: "error", message: "One or more 15-minute lots for this meeting were just booked by another visitor. Please choose another time." };
-                }
-                return { status: "success", ref: primaryRef };
-              });
+              return supabaseClient
+                .from('bookings')
+                .upsert(fallbackRows, { onConflict: 'exhibition_id,salesman_id,date,time' })
+                .then(({ error: err2 }) => {
+                  if (err2 && (err2.code === '23505' || (err2.message && err2.message.includes('unique')))) {
+                    return { status: "error", message: "One or more 15-minute lots for this meeting were just booked by another visitor. Please choose another time." };
+                  }
+                  return { status: "success", ref: primaryRef };
+                });
             }
             if (error.code === '23505' || (error.message && error.message.includes('unique'))) {
               return { status: "error", message: "One or more 15-minute lots for this meeting were just booked by another visitor. Please choose another time." };
@@ -2298,12 +2415,24 @@
     const duration = booking.duration || 15;
     const slotsToBook = booking.slots || getConsecutiveSlots(booking.time, duration);
 
+    // Refresh recent bookings record
+    removeRecentBooking(ref);
+    addRecentBooking(ref, {
+      ...booking,
+      ref: ref,
+      exhibitionId: booking.exhibitionId || currentExhibitionId,
+      salesmanId: booking.salesmanId || currentSalesmanId,
+      salesmanName: booking.salesmanName || salesmen.find(s => s.id === currentSalesmanId)?.name || currentSalesmanId,
+      duration: duration,
+      slots: slotsToBook
+    });
+
     let supabasePromise = Promise.resolve();
     if (supabaseClient) {
-      // Delete existing lots for this ref and re-insert updated slot lots
+      // Mark existing lots cancelled first to release old slots
       supabasePromise = supabaseClient
         .from('bookings')
-        .delete()
+        .update({ status: 'cancelled' })
         .or(`ref.eq.${ref},ref.like.${ref}-P%`)
         .then(() => {
           const rows = slotsToBook.map((slotTime, idx) => ({
@@ -2317,21 +2446,25 @@
             company: booking.company,
             email: booking.email,
             phone: booking.phone,
-            status: 'confirmed',
-            rep_notes: `Duration: ${duration} mins (${idx + 1}/${slotsToBook.length} lots)`
+            status: 'confirmed'
           }));
-          return supabaseClient.from('bookings').insert(rows).then(({ error }) => {
-            if (error && error.code === '23503') {
-              const fallbackRows = rows.map(r => ({ ...r, exhibition_id: 'fi-india-2026' }));
-              return supabaseClient.from('bookings').insert(fallbackRows);
-            }
-          });
+          return supabaseClient
+            .from('bookings')
+            .upsert(rows, { onConflict: 'exhibition_id,salesman_id,date,time' })
+            .then(({ error }) => {
+              if (error && error.code === '23503') {
+                const fallbackRows = rows.map(r => ({ ...r, exhibition_id: 'fi-india-2026' }));
+                return supabaseClient.from('bookings').upsert(fallbackRows, { onConflict: 'exhibition_id,salesman_id,date,time' });
+              }
+            });
         })
         .catch(err => console.warn("Supabase edit sync warning:", err));
     }
 
     if (!APPS_SCRIPT_URL) return supabasePromise.then(() => ({ status: "success" }));
 
+    const phoneClean = (booking.phone || '').trim();
+    const phoneParam = phoneClean.startsWith('+') ? "'" + phoneClean : phoneClean;
     const params = new URLSearchParams({
       action: 'update',
       ref: ref,
@@ -2344,7 +2477,7 @@
       lastName: booking.lastName,
       company: booking.company,
       email: booking.email,
-      phone: booking.phone
+      phone: phoneParam
     });
 
     return fetch(APPS_SCRIPT_URL + '?' + params.toString())
@@ -2366,6 +2499,7 @@
     if (confirm(`Are you sure you want to cancel/delete the meeting with ${b.firstName} ${b.lastName} (${b.company})?`)) {
       // 1. Immediately purge all linked parts from local storage cache
       try {
+        removeRecentBooking(primaryRef);
         const userBookings = getUserBookings();
         for (const [key, r] of Object.entries(userBookings)) {
           if (r === primaryRef || (typeof r === 'string' && r.startsWith(primaryRef + '-P'))) {
@@ -2394,12 +2528,14 @@
           .catch(() => {});
       }
 
-      // 4. Cancel in Google Sheets via Google Apps Script
+      // 4. Cancel in Google Sheets via Google Apps Script (primary ref + all linked lot parts)
       if (APPS_SCRIPT_URL) {
-        const params = new URLSearchParams({ action: 'cancel', ref: primaryRef });
-        fetch(APPS_SCRIPT_URL + '?' + params.toString()).then(() => {
-          fetchBookings();
-        }).catch(() => {});
+        const refsToCancel = [primaryRef, `${primaryRef}-P2`, `${primaryRef}-P3`, `${primaryRef}-P4`];
+        refsToCancel.forEach(r => {
+          const params = new URLSearchParams({ action: 'cancel', ref: r });
+          fetch(APPS_SCRIPT_URL + '?' + params.toString()).catch(() => {});
+        });
+        setTimeout(fetchBookings, 800);
       }
 
       renderSalesmanSchedule();
@@ -2970,6 +3106,7 @@
   function executeCancel() {
     if (!pendingCancel) return;
     const primaryRef = (pendingCancel.ref || '').split('-P')[0];
+    removeRecentBooking(primaryRef);
     const userBookings = getUserBookings();
     
     // Purge all lots associated with this primaryRef
@@ -2992,10 +3129,14 @@
         .catch(() => {});
     }
 
-    // Cancel in Google Apps Script
+    // Cancel in Google Sheets via Google Apps Script (primary ref + all linked lot parts)
     if (primaryRef && APPS_SCRIPT_URL) {
-      const params = new URLSearchParams({ action: 'cancel', ref: primaryRef });
-      fetch(APPS_SCRIPT_URL + '?' + params.toString()).catch(() => {});
+      const refsToCancel = [primaryRef, `${primaryRef}-P2`, `${primaryRef}-P3`, `${primaryRef}-P4`];
+      refsToCancel.forEach(r => {
+        const params = new URLSearchParams({ action: 'cancel', ref: r });
+        fetch(APPS_SCRIPT_URL + '?' + params.toString()).catch(() => {});
+      });
+      setTimeout(fetchBookings, 800);
     }
 
     closeConfirmModal();
