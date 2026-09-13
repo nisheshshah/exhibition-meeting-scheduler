@@ -84,7 +84,7 @@ function handleFetch(params) {
         lastName: row[8],
         company: row[9],
         email: row[10],
-        phone: row[11],
+        phone: formatPhoneStr(row[11]),
         status: status
       });
     }
@@ -144,13 +144,15 @@ function handleBook(params) {
         params.lastName,
         params.company,
         params.email,
-        params.phone,
+        params.phone ? ("'" + formatPhoneStr(params.phone)) : "",
         "confirmed"
       ]);
     });
 
-    // Send automated email confirmation to client & sales representative
-    sendConfirmationEmail(params, ref, salesmanName);
+    // Send automated email confirmation to client & sales representative (skip if notify=false or silent=true)
+    if (!params || (params.notify !== 'false' && params.silent !== 'true' && params.noEmail !== 'true')) {
+      sendConfirmationEmail(params, ref, salesmanName);
+    }
 
     lock.releaseLock();
     return jsonResponse({ status: "success", ref: ref, date: dateStr, time: timeStr, duration: duration, slots: slotsToBook });
@@ -233,13 +235,15 @@ function handleUpdate(params) {
         params.lastName,
         params.company,
         params.email,
-        params.phone,
+        params.phone ? ("'" + formatPhoneStr(params.phone)) : "",
         "confirmed"
       ]);
     });
 
-    // Send updated meeting email notification to client & sales representative
-    sendUpdateEmail(params, ref, salesmanName, targetSalesmanId);
+    // Send updated meeting email notification to client & sales representative (skip if notify=false or silent=true)
+    if (!params || (params.notify !== 'false' && params.silent !== 'true' && params.noEmail !== 'true')) {
+      sendUpdateEmail(params, ref, salesmanName, targetSalesmanId);
+    }
 
     lock.releaseLock();
     return jsonResponse({ status: "success", message: "Booking updated" });
@@ -288,12 +292,14 @@ function handleCancel(params) {
 
     lock.releaseLock();
     if (found && cancelInfo) {
-      // Send single cancellation email notification to client & sales representative
-      sendCancellationEmail(
-        cancelInfo.clientEmail, cancelInfo.salesmanEmail, ref,
-        cancelInfo.firstName, cancelInfo.lastName, cancelInfo.company,
-        cancelInfo.date, cancelInfo.time, cancelInfo.salesmanName
-      );
+      // Send single cancellation email notification to client & sales representative (skip if notify=false or silent=true)
+      if (!params || (params.notify !== 'false' && params.silent !== 'true' && params.noEmail !== 'true')) {
+        sendCancellationEmail(
+          cancelInfo.clientEmail, cancelInfo.salesmanEmail, ref,
+          cancelInfo.firstName, cancelInfo.lastName, cancelInfo.company,
+          cancelInfo.date, cancelInfo.time, cancelInfo.salesmanName, params
+        );
+      }
       return jsonResponse({ status: "success", message: "Booking deleted permanently" });
     } else {
       return jsonResponse({ status: "error", message: "Booking reference not found" });
@@ -354,6 +360,16 @@ function formatDateStr(d) {
   return String(d);
 }
 
+function formatPhoneStr(p) {
+  if (!p) return '';
+  const str = String(p).trim();
+  if (str.startsWith("'")) return str.substring(1).trim();
+  if (str.includes('#ERROR') || str.includes('#REF') || str.includes('#VALUE') || str.toLowerCase().includes('error')) return '';
+  const digitsOnly = str.replace(/[\s\-\(\)\+]/g, '');
+  if (digitsOnly === '66812345678' || digitsOnly === '812345678') return '';
+  return str;
+}
+
 function getSalesmanName(id) {
   const map = {
     'S002': 'Jai Shah',
@@ -392,10 +408,11 @@ function getSalesmanEmail(id) {
 }
 
 function sendConfirmationEmail(params, ref, salesmanName) {
+  if (params && (params.notify === 'false' || params.silent === 'true' || params.noEmail === 'true')) return;
   const clientEmail = params.email;
   const salesmanEmail = params.salesmanEmail || getSalesmanEmail(params.salesmanId || params.s);
   
-  if (!clientEmail || !clientEmail.includes('@')) return;
+  if (!clientEmail || !clientEmail.includes('@') || clientEmail.endsWith('@example.com') || clientEmail.endsWith('@test.com')) return;
 
   const duration = parseInt(params.duration) || 15;
   const lotCount = duration / 15;
@@ -474,10 +491,11 @@ function sendConfirmationEmail(params, ref, salesmanName) {
 }
 
 function sendUpdateEmail(params, ref, salesmanName, salesmanId) {
+  if (params && (params.notify === 'false' || params.silent === 'true' || params.noEmail === 'true')) return;
   const clientEmail = params.email;
   const salesmanEmail = params.salesmanEmail || getSalesmanEmail(salesmanId || params.salesmanId || params.s);
   
-  if (!clientEmail || !clientEmail.includes('@')) return;
+  if (!clientEmail || !clientEmail.includes('@') || clientEmail.endsWith('@example.com') || clientEmail.endsWith('@test.com')) return;
 
   const duration = parseInt(params.duration) || 15;
   const lotCount = duration / 15;
@@ -531,8 +549,9 @@ function sendUpdateEmail(params, ref, salesmanName, salesmanId) {
   }
 }
 
-function sendCancellationEmail(clientEmail, salesmanEmail, ref, firstName, lastName, company, date, time, salesmanName) {
-  if (!clientEmail || !clientEmail.includes('@')) return;
+function sendCancellationEmail(clientEmail, salesmanEmail, ref, firstName, lastName, company, date, time, salesmanName, params) {
+  if (params && (params.notify === 'false' || params.silent === 'true' || params.noEmail === 'true')) return;
+  if (!clientEmail || !clientEmail.includes('@') || clientEmail.endsWith('@example.com') || clientEmail.endsWith('@test.com')) return;
 
   const subject = `Meeting Cancelled: Universal Oleoresins [Ref: ${ref}]`;
   const bodyText = `Dear ${firstName} ${lastName},\n\n` +

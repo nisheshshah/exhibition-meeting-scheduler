@@ -889,6 +889,20 @@
     } catch(e) { console.error("Supabase init error:", e); }
   }
 
+  function getCleanPhone(phone) {
+    if (!phone) return '';
+    let p = String(phone).trim();
+    if (p.startsWith("'")) p = p.substring(1).trim();
+    if (p.includes('#ERROR') || p.includes('#REF') || p.includes('#VALUE') || p.toLowerCase().includes('error') || p === 'undefined' || p === 'null') {
+      return '';
+    }
+    const digitsOnly = p.replace(/[\s\-\(\)\+]/g, '');
+    if (digitsOnly === '66812345678' || digitsOnly === '812345678') {
+      return '';
+    }
+    return p;
+  }
+
   function getSlug(name) {
     if (!name) return '';
     return name.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
@@ -968,10 +982,10 @@
   let currentBookings = {};
   let rawBookingsList = [];
 
-  function generateTimeSlots(startHour = 9, endHour = 16) {
+  function generateTimeSlots(startHour = 9, endHour = 18) {
     const slots = [];
     const sh = Math.max(0, Math.min(23, Number(startHour) || 9));
-    const eh = Math.max(sh, Math.min(23, Number(endHour) || 16));
+    const eh = Math.max(sh, Math.min(23, Number(endHour) || 18));
     for (let h = sh; h <= eh; h++) {
       for (let m = 0; m < 60; m += 15) {
         const hour12 = h === 0 ? 12 : (h > 12 ? h - 12 : h);
@@ -983,7 +997,7 @@
     }
     return slots;
   }
-  let timeSlots = generateTimeSlots();
+  let timeSlots = generateTimeSlots(9, 18);
 
   // Multi-Lot Meeting Duration Helpers (15, 30, 45, 60 mins)
   function getConsecutiveSlots(startTime, durationMinutes) {
@@ -1098,7 +1112,9 @@
       startDate: '2026-10-19', 
       endDate: '2026-10-23', 
       timezone: 'Asia/Bangkok', 
-      tzLabel: 'ICT (UTC+7:00)' 
+      tzLabel: 'ICT (UTC+7:00)',
+      startHour: 9,
+      endHour: 18
     },
     { 
       id: 'fi-india-2026', 
@@ -1108,7 +1124,9 @@
       startDate: '2026-08-26', 
       endDate: '2026-08-28', 
       timezone: 'Asia/Kolkata', 
-      tzLabel: 'IST (UTC+5:30)' 
+      tzLabel: 'IST (UTC+5:30)',
+      startHour: 9,
+      endHour: 18
     },
     { 
       id: 'gulfood-2027', 
@@ -1118,7 +1136,9 @@
       startDate: '2027-02-16', 
       endDate: '2027-02-20', 
       timezone: 'Asia/Dubai', 
-      tzLabel: 'GST (UTC+4:00)' 
+      tzLabel: 'GST (UTC+4:00)',
+      startHour: 9,
+      endHour: 18
     }
   ];
   
@@ -1550,8 +1570,11 @@
     currentBookings = {};
     const latestMap = new Map();
     data.forEach(b => {
-      if (b.ref && b.ref !== 'shone' && b.status !== 'cancelled') {
-        latestMap.set(b.ref, b);
+      if (b) {
+        b.phone = getCleanPhone(b.phone);
+        if (b.ref && b.ref !== 'shone' && b.status !== 'cancelled') {
+          latestMap.set(b.ref, b);
+        }
       }
     });
     const cleanData = Array.from(latestMap.values());
@@ -1692,8 +1715,8 @@
     // Fire Google Apps Script sync for each consecutive 15-min lot
     // (Prefix phone with single quote to prevent Google Sheets from interpreting '+' as formula)
     if (APPS_SCRIPT_URL) {
-      const phoneClean = (booking.phone || '').trim();
-      const phoneParam = phoneClean.startsWith('+') ? "'" + phoneClean : phoneClean;
+      const phoneClean = getCleanPhone(booking.phone);
+      const phoneParam = phoneClean ? ("'" + phoneClean.replace(/^'+/, '')) : '';
       const ex = getCurrentExhibition();
       const sObj = salesmen.find(s => s.id === currentSalesmanId);
       const vTz = getVenueTimezone();
@@ -1721,7 +1744,9 @@
           company: booking.company,
           email: booking.email,
           phone: phoneParam,
-          ref: partRef
+          ref: partRef,
+          notify: 'false',
+          silent: 'true'
         });
         fetch(APPS_SCRIPT_URL + '?' + params.toString()).catch(err => {
           console.warn("Background Google Apps Script slot sync error:", err);
@@ -1731,6 +1756,7 @@
 
     // Direct Supabase database insertion (atomic multi-slot batch via upsert)
     if (supabaseClient) {
+      const cleanPhoneVal = getCleanPhone(booking.phone);
       const rows = slotsToBook.map((slotTime, idx) => ({
         ref: idx === 0 ? primaryRef : `${primaryRef}-P${idx + 1}`,
         exhibition_id: currentExhibitionId,
@@ -1741,7 +1767,7 @@
         last_name: booking.lastName,
         company: booking.company,
         email: booking.email,
-        phone: booking.phone,
+        phone: cleanPhoneVal,
         status: 'confirmed'
       }));
 
@@ -1835,7 +1861,7 @@
 
     // Update time slots dynamically based on exhibition operating hours
     const startH = (ex.startHour !== undefined && ex.startHour !== null && ex.startHour !== '') ? Number(ex.startHour) : 9;
-    const endH = (ex.endHour !== undefined && ex.endHour !== null && ex.endHour !== '') ? Number(ex.endHour) : 16;
+    const endH = (ex.endHour !== undefined && ex.endHour !== null && ex.endHour !== '') ? Number(ex.endHour) : 18;
     timeSlots = generateTimeSlots(startH, endH);
     
     const tagEl = document.getElementById('exhibitionHeaderTag');
@@ -1961,7 +1987,7 @@
     const startHourSel = document.getElementById('adminExStartHour');
     if (startHourSel) startHourSel.value = '9';
     const endHourSel = document.getElementById('adminExEndHour');
-    if (endHourSel) endHourSel.value = '16';
+    if (endHourSel) endHourSel.value = '18';
 
     const statusText = document.getElementById('exhibitionFormStatusText');
     if (statusText) statusText.textContent = 'Setting up new exhibition';
@@ -2148,7 +2174,7 @@
         const customLabel = (formData.get('exTzLabel') || '').trim();
         const resolvedLabel = customLabel || `${getVenueTimezoneAbbr(newTz)} (${getTimezoneOffsetString(newTz)})`;
         const startHour = formData.get('exStartHour') !== null && formData.get('exStartHour') !== '' ? Number(formData.get('exStartHour')) : 9;
-        const endHour = formData.get('exEndHour') !== null && formData.get('exEndHour') !== '' ? Number(formData.get('exEndHour')) : 16;
+        const endHour = formData.get('exEndHour') !== null && formData.get('exEndHour') !== '' ? Number(formData.get('exEndHour')) : 18;
 
         let targetIndex = exhibitionsList.findIndex(x => x.id === editingId);
 
@@ -2516,7 +2542,7 @@
     document.getElementById('editBookingLastName').value = booking.lastName || '';
     document.getElementById('editBookingCompany').value = booking.company || '';
     document.getElementById('editBookingEmail').value = booking.email || '';
-    const cleanPhone = (booking.phone && !booking.phone.includes('#ERROR')) ? booking.phone.replace(/^'/, '') : '';
+    const cleanPhone = getCleanPhone(booking.phone);
     document.getElementById('editBookingPhone').value = cleanPhone;
 
     // Populate active exhibition dates dynamically
@@ -2610,7 +2636,7 @@
       lastName: document.getElementById('editBookingLastName').value.trim(),
       company: document.getElementById('editBookingCompany').value.trim(),
       email: document.getElementById('editBookingEmail').value.trim(),
-      phone: document.getElementById('editBookingPhone').value.trim(),
+      phone: getCleanPhone(document.getElementById('editBookingPhone').value),
       date: newDate,
       time: newTime,
       duration: newDuration,
@@ -2679,7 +2705,7 @@
             last_name: booking.lastName,
             company: booking.company,
             email: booking.email,
-            phone: booking.phone,
+            phone: getCleanPhone(booking.phone),
             status: 'confirmed'
           }));
           return supabaseClient
@@ -2698,8 +2724,8 @@
 
     if (!APPS_SCRIPT_URL) return supabasePromise.then(() => ({ status: "success" }));
 
-    const phoneClean = (booking.phone || '').trim();
-    const phoneParam = phoneClean.startsWith('+') ? "'" + phoneClean : phoneClean;
+    const phoneClean = getCleanPhone(booking.phone);
+    const phoneParam = phoneClean ? ("'" + phoneClean.replace(/^'+/, '')) : '';
     const params = new URLSearchParams({
       action: 'update',
       ref: ref,
@@ -2720,7 +2746,9 @@
       exhibitionTitle: ex ? ex.title : targetExId,
       exhibitionVenue: ex ? ex.venue : '',
       exhibitionLocation: ex ? ex.location : '',
-      venueTzAbbr: vTzAbbr
+      venueTzAbbr: vTzAbbr,
+      notify: 'false',
+      silent: 'true'
     });
 
     return fetch(APPS_SCRIPT_URL + '?' + params.toString())
@@ -2776,7 +2804,7 @@
         const refsToCancel = [primaryRef, `${primaryRef}-P2`, `${primaryRef}-P3`, `${primaryRef}-P4`];
         if (ref && !refsToCancel.includes(ref)) refsToCancel.push(ref);
         Promise.allSettled(refsToCancel.map(r => {
-          const params = new URLSearchParams({ action: 'cancel', ref: r });
+          const params = new URLSearchParams({ action: 'cancel', ref: r, notify: 'false', silent: 'true' });
           return fetch(APPS_SCRIPT_URL + '?' + params.toString());
         })).then(() => {
           setTimeout(fetchBookings, 800);
@@ -2858,7 +2886,7 @@
         const uEnd = getTimeInTimezone(b.date, endTime, venueTz, userTimezone);
         timeText += ` <span class="text-[var(--muted)] font-normal">(${uStart.time} – ${uEnd.time} ${uStart.tzAbbr})</span>`;
       }
-      const cleanPhone = (b.phone && !b.phone.includes('#ERROR')) ? b.phone.replace(/^'/, '') : '';
+      const cleanPhone = getCleanPhone(b.phone);
       return `
       <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 p-4 rounded-xl bg-white border border-[var(--border)] shadow-sm hover:border-[var(--accent-light)] transition">
         <div class="flex items-center gap-4">
@@ -2929,8 +2957,9 @@
     const rows = meetings.map(b => {
       const dur = b.duration || (b.lotCount ? b.lotCount * 15 : 15);
       const endTime = getMeetingEndTime(b.startTime, dur);
-      const phoneClean = (b.phone && !b.phone.includes('#ERROR')) ? b.phone.replace(/^'/, '') : '';
-      return [b.ref, b.date, b.startTime, endTime, dur, b.lotCount, `"${b.firstName}"`, `"${b.lastName}"`, `"${b.company}"`, b.email, `'${phoneClean}`];
+      const phoneClean = getCleanPhone(b.phone);
+      const phoneExport = phoneClean ? `'${phoneClean}` : '';
+      return [b.ref, b.date, b.startTime, endTime, dur, b.lotCount, `"${b.firstName}"`, `"${b.lastName}"`, `"${b.company}"`, b.email, phoneExport];
     });
     const csvContent = "data:text/csv;charset=utf-8," + [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
     const link = document.createElement("a");
@@ -3006,10 +3035,14 @@
     const venueTz = getVenueTimezone();
     const venueTzAbbr = getVenueTimezoneAbbr(venueTz);
     if (d) {
-      let sub = `${d.weekday}, ${d.day} ${d.monthFull} · 9:00 AM – 5:00 PM ${venueTzAbbr} (Venue)`;
+      const startH = (ex && ex.startHour !== undefined && ex.startHour !== null && ex.startHour !== '') ? Number(ex.startHour) : 9;
+      const endH = (ex && ex.endHour !== undefined && ex.endHour !== null && ex.endHour !== '') ? Number(ex.endHour) : 18;
+      const startStr = `${startH > 12 ? startH - 12 : startH}:00 ${startH >= 12 ? 'PM' : 'AM'}`;
+      const endStr = `${endH > 12 ? endH - 12 : endH}:00 ${endH >= 12 ? 'PM' : 'AM'}`;
+      let sub = `${d.weekday}, ${d.day} ${d.monthFull} · ${startStr} – ${endStr} ${venueTzAbbr} (Venue)`;
       if (isDualTimezone && userTimezone !== venueTz) {
-        const uStart = getTimeInTimezone(currentDate, '09:00', venueTz, userTimezone);
-        const uEnd = getTimeInTimezone(currentDate, '17:00', venueTz, userTimezone);
+        const uStart = getTimeInTimezone(currentDate, `${startH.toString().padStart(2, '0')}:00`, venueTz, userTimezone);
+        const uEnd = getTimeInTimezone(currentDate, `${endH.toString().padStart(2, '0')}:00`, venueTz, userTimezone);
         sub += ` · ${uStart.time} – ${uEnd.time} ${uStart.tzAbbr} (Your Time)`;
       }
       document.getElementById('dateSubheading').textContent = sub;
@@ -3028,7 +3061,12 @@
     const venueTzAbbr = getVenueTimezoneAbbr(venueTz);
     const showDual = isDualTimezone && (userTimezone !== venueTz);
 
-    for (let h = 9; h <= 16; h++) {
+    const startH = (ex && ex.startHour !== undefined && ex.startHour !== null && ex.startHour !== '') ? Number(ex.startHour) : 9;
+    const endH = (ex && ex.endHour !== undefined && ex.endHour !== null && ex.endHour !== '') ? Number(ex.endHour) : 18;
+    const minH = timeSlots.length > 0 ? Math.min(...timeSlots.map(s => s.hour)) : startH;
+    const maxH = timeSlots.length > 0 ? Math.max(...timeSlots.map(s => s.hour)) : endH;
+
+    for (let h = minH; h <= maxH; h++) {
       const hourSlots = timeSlots.filter(s => s.hour === h);
       const hour12 = h === 0 ? 12 : (h > 12 ? h - 12 : h);
       const ampm = h >= 12 ? 'PM' : 'AM';
@@ -3082,7 +3120,7 @@
           buttonContent = `<span class="font-medium">${spanLabel}</span>${durBadge}${extra}`;
         }
 
-        return `<button class="${cls}" data-slot="${slot.value}" data-label="${slot.label}" ${disabled}>${buttonContent}</button>`;
+        return `<button class="${cls}" data-slot="${slot.value}" data-label="${slot.label}" data-date="${currentDate}" ${disabled}>${buttonContent}</button>`;
       }).join('');
 
       groupDiv.innerHTML = `<div class="flex items-center gap-3 mb-3"><span class="font-display text-sm font-semibold text-[var(--accent)]">${hourHeaderLabel}</span><div class="flex-1 h-px bg-gradient-to-r from-[var(--border)] to-transparent"></div></div><div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5">${slotsHTML}</div>`;
@@ -3091,7 +3129,7 @@
 
     document.querySelectorAll('.slot-btn:not(.booked):not(.disabled-duration)').forEach(btn => {
       btn.addEventListener('click', () => {
-        openBookingModal(btn.dataset.slot, btn.dataset.label, btn.classList.contains('mine'));
+        openBookingModal(btn.dataset.slot, btn.dataset.label, btn.classList.contains('mine'), btn.dataset.date);
       });
     });
 
@@ -3187,16 +3225,18 @@
     if (badge) badge.textContent = `${lotCount} Lot${lotCount > 1 ? 's' : ''} (${dur}m)`;
   }
 
-  function openBookingModal(slotValue, slotLabel, isMine) {
-    selectedSlot = { value: slotValue, label: slotLabel };
+  function openBookingModal(slotValue, slotLabel, isMine, slotDate) {
+    const bookingDate = slotDate || currentDate || (dates[0] ? dates[0].value : '2026-10-21');
+    if (bookingDate) currentDate = bookingDate;
+    selectedSlot = { value: slotValue, label: slotLabel, date: bookingDate };
     modalSelectedDuration = selectedDuration || 15;
-    const d = dates.find(x => x.value === currentDate);
+    const d = dates.find(x => x.value === bookingDate);
     const s = salesmen.find(x => x.id === currentSalesmanId);
 
-    document.getElementById('modalDate').textContent = d ? `${d.day} ${d.month}` : currentDate;
+    document.getElementById('modalDate').textContent = d ? `${d.day} ${d.month}` : bookingDate;
     document.getElementById('modalSalesman').textContent = s ? s.name : currentSalesmanId;
 
-    const booking = isMine ? currentBookings[`${currentDate}_${slotValue}`] : null;
+    const booking = isMine ? currentBookings[`${bookingDate}_${slotValue}`] : null;
     const excludeRef = booking ? (booking.ref || '').split('-P')[0] : null;
 
     // Check consecutive availability for each duration option
@@ -3206,7 +3246,7 @@
 
     document.querySelectorAll('#modalDurationPills .modal-duration-pill').forEach(pill => {
       const dur = parseInt(pill.dataset.duration) || 15;
-      const check = isConsecutiveAvailable(currentDate, slotValue, dur, excludeRef);
+      const check = isConsecutiveAvailable(bookingDate, slotValue, dur, excludeRef);
       if (check.available) {
         pill.disabled = false;
         pill.title = `${dur} minutes available (${dur/15} lots)`;
@@ -3240,12 +3280,13 @@
       const form = document.getElementById('bookingForm');
       form.firstName.value = booking.firstName || ''; form.lastName.value = booking.lastName || '';
       form.company.value = booking.company || ''; form.email.value = booking.email || '';
-      const phoneParts = (booking.phone || '').trim().split(' ');
+      const cleanPhone = getCleanPhone(booking.phone);
+      const phoneParts = cleanPhone.trim().split(' ');
       if (phoneParts[0] && phoneParts[0].startsWith('+')) {
         form.phoneCode.value = phoneParts[0];
         form.phone.value = phoneParts.slice(1).join(' ');
       } else {
-        form.phone.value = booking.phone || '';
+        form.phone.value = cleanPhone;
       }
     } else {
       document.getElementById('bookingForm').reset();
@@ -3282,11 +3323,13 @@
 
     if (!valid) { showToast('Check the form', 'Please fix the highlighted fields.', 'error'); return; }
 
+    const bookingDate = (selectedSlot && selectedSlot.date) || currentDate || (dates[0] ? dates[0].value : '2026-10-21');
+    currentDate = bookingDate;
     const dur = modalSelectedDuration || selectedDuration || 15;
     const slotsToBook = getConsecutiveSlots(selectedSlot.value, dur);
 
     // Double check availability right before submit
-    const availCheck = isConsecutiveAvailable(currentDate, selectedSlot.value, dur);
+    const availCheck = isConsecutiveAvailable(bookingDate, selectedSlot.value, dur);
     if (!availCheck.available) {
       showToast('Slot unavailable', availCheck.reason || 'Requested duration is no longer available.', 'error');
       closeBookingModal();
@@ -3299,7 +3342,9 @@
     submitBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin mr-2"></i>Reserving...`;
 
     const ref = 'UO-' + Math.random().toString(36).substring(2, 8).toUpperCase();
-    const fullPhone = `${data.phoneCode || '+91'} ${data.phone.trim()}`;
+    const rawPhone = data.phone ? data.phone.trim() : '';
+    const cleanPhoneInput = getCleanPhone(rawPhone);
+    const fullPhone = cleanPhoneInput ? `${data.phoneCode || '+91'} ${cleanPhoneInput}` : '';
     const booking = {
       firstName: data.firstName.trim(),
       lastName: data.lastName.trim(),
@@ -3312,7 +3357,7 @@
       slots: slotsToBook
     };
 
-    saveBookingToCloud(currentDate, selectedSlot.value, booking).then(response => {
+    saveBookingToCloud(bookingDate, selectedSlot.value, booking).then(response => {
       submitBtn.disabled = false;
       submitBtn.innerHTML = `<i class="fa-solid fa-calendar-check mr-2"></i>Confirm booking`;
       
@@ -3323,8 +3368,8 @@
         const userBookings = getUserBookings();
         slotsToBook.forEach((slotTime, idx) => {
           const partRef = idx === 0 ? confirmRef : `${confirmRef}-P${idx + 1}`;
-          userBookings[`${currentSalesmanId}_${currentDate}_${slotTime}`] = partRef;
-          currentBookings[`${currentDate}_${slotTime}`] = { ...booking, ref: partRef, duration: dur, primaryRef: confirmRef };
+          userBookings[`${currentSalesmanId}_${bookingDate}_${slotTime}`] = partRef;
+          currentBookings[`${bookingDate}_${slotTime}`] = { ...booking, date: bookingDate, ref: partRef, duration: dur, primaryRef: confirmRef };
         });
         setUserBookings(userBookings);
         
@@ -3333,7 +3378,7 @@
         
         const s = salesmen.find(x => x.id === currentSalesmanId);
         closeBookingModal();
-        showSuccess(currentDate, selectedSlot.value, s, confirmRef, booking, dur);
+        showSuccess(bookingDate, selectedSlot.value, s, confirmRef, booking, dur);
         
         // Sync with cloud in the background to update for other users
         fetchBookings(); 
@@ -3350,8 +3395,8 @@
       const userBookings = getUserBookings();
       slotsToBook.forEach((slotTime, idx) => {
         const partRef = idx === 0 ? ref : `${ref}-P${idx + 1}`;
-        userBookings[`${currentSalesmanId}_${currentDate}_${slotTime}`] = partRef;
-        currentBookings[`${currentDate}_${slotTime}`] = { ...booking, ref: partRef, duration: dur, primaryRef: ref };
+        userBookings[`${currentSalesmanId}_${bookingDate}_${slotTime}`] = partRef;
+        currentBookings[`${bookingDate}_${slotTime}`] = { ...booking, date: bookingDate, ref: partRef, duration: dur, primaryRef: ref };
       });
       setUserBookings(userBookings);
       renderSlots();
@@ -3359,7 +3404,7 @@
 
       const s = salesmen.find(x => x.id === currentSalesmanId);
       closeBookingModal();
-      showSuccess(currentDate, selectedSlot.value, s, ref, booking, dur);
+      showSuccess(bookingDate, selectedSlot.value, s, ref, booking, dur);
       fetchBookings();
     });
   }
@@ -3582,7 +3627,7 @@
       const startHourSel = document.getElementById('adminExStartHour');
       if (startHourSel) startHourSel.value = (ex.startHour !== undefined && ex.startHour !== null && ex.startHour !== '') ? String(ex.startHour) : '9';
       const endHourSel = document.getElementById('adminExEndHour');
-      if (endHourSel) endHourSel.value = (ex.endHour !== undefined && ex.endHour !== null && ex.endHour !== '') ? String(ex.endHour) : '16';
+      if (endHourSel) endHourSel.value = (ex.endHour !== undefined && ex.endHour !== null && ex.endHour !== '') ? String(ex.endHour) : '18';
 
       const statusText = document.getElementById('exhibitionFormStatusText');
       if (statusText) statusText.textContent = `Managing: ${ex.title}`;
@@ -3817,7 +3862,7 @@
       const endTime = getMeetingEndTime(b.startTime, dur);
       const durBadge = dur > 15 ? `<span class="ml-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-orange-100 text-orange-800">${dur}m (${b.lotCount} lots)</span>` : '';
       const timeSpan = dur > 15 ? `${formatTime12(b.startTime)}–${formatTime12(endTime)}` : formatTime12(b.startTime);
-      const cleanPhone = (b.phone && !b.phone.includes('#ERROR')) ? b.phone.replace(/^'/, '') : '';
+      const cleanPhone = getCleanPhone(b.phone);
       return `
       <tr class="hover:bg-amber-50/50">
         <td class="p-3 font-mono font-bold text-[var(--accent)]">${b.ref || 'UO-REF'}</td>
@@ -3867,10 +3912,11 @@
     const rows = aggregatedList.map(b => {
       const dur = b.duration || (b.lotCount ? b.lotCount * 15 : 15);
       const endTime = getMeetingEndTime(b.startTime, dur);
-      const phoneClean = (b.phone && !b.phone.includes('#ERROR')) ? b.phone.replace(/^'/, '') : '';
+      const phoneClean = getCleanPhone(b.phone);
+      const phoneExport = phoneClean ? `'${phoneClean}` : '';
       return [
         b.ref, b.exhibitionId || currentExhibitionId, b.salesmanId, b.salesmanName, b.date, b.startTime, endTime, dur, b.lotCount,
-        `"${b.firstName}"`, `"${b.lastName}"`, `"${b.company}"`, b.email, `'${phoneClean}`, b.status || 'confirmed'
+        `"${b.firstName}"`, `"${b.lastName}"`, `"${b.company}"`, b.email, phoneExport, b.status || 'confirmed'
       ];
     });
 
