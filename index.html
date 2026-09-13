@@ -799,11 +799,7 @@
         <div class="grid grid-cols-3 gap-2.5">
           <div>
             <label class="text-[10px] uppercase tracking-wider text-[var(--muted)] block mb-1">Date</label>
-            <select id="editBookingDate" class="input text-xs">
-              <option value="2026-08-26">26 Aug 2026</option>
-              <option value="2026-08-27">27 Aug 2026</option>
-              <option value="2026-08-28">28 Aug 2026</option>
-            </select>
+            <select id="editBookingDate" class="input text-xs cursor-pointer"></select>
           </div>
           <div>
             <label class="text-[10px] uppercase tracking-wider text-[var(--muted)] block mb-1">Start Time</label>
@@ -1016,7 +1012,7 @@
   function isConsecutiveAvailable(date, startTime, durationMinutes, excludeRef = null) {
     const slots = getConsecutiveSlots(startTime, durationMinutes);
     if (slots.length === 0) {
-      return { available: false, reason: 'Exceeds exhibition closing time (5:00 PM)' };
+      return { available: false, reason: 'Exceeds exhibition operating hours' };
     }
     const userBookings = getUserBookings();
     for (const s of slots) {
@@ -1027,6 +1023,19 @@
         const baseExistingRef = bRef.split('-P')[0];
         const baseExcl = (excludeRef || '').split('-P')[0];
         if (!excludeRef || (baseExistingRef !== baseExcl && bRef !== excludeRef)) {
+          return { available: false, reason: `Slot ${formatTime12(s)} is already booked`, blockedSlot: s };
+        }
+      }
+      // Also check rawBookingsList directly to ensure multi-date bookings are always accounted for
+      const rawMatch = rawBookingsList.find(b => 
+        (b.salesmanId === currentSalesmanId || b.salesmanId === getSlug(currentSalesmanId)) &&
+        b.date === date && b.time === s && b.status !== 'cancelled'
+      );
+      if (rawMatch) {
+        const bRef = rawMatch.ref || '';
+        const baseMatchRef = bRef.split('-P')[0];
+        const baseExcl = (excludeRef || '').split('-P')[0];
+        if (!excludeRef || (baseMatchRef !== baseExcl && bRef !== excludeRef)) {
           return { available: false, reason: `Slot ${formatTime12(s)} is already booked`, blockedSlot: s };
         }
       }
@@ -1042,6 +1051,7 @@
     }
     return { available: true, slots: slots };
   }
+
 
   function getUserBookings() {
     try { return JSON.parse(localStorage.getItem('uo_user_bookings') || '{}'); }
@@ -1447,63 +1457,94 @@
   // API SYNC (FETCH & WRITE)
   // ==========================================
   function fetchBookings() {
-    // 1. Primary: Fetch directly from Supabase PostgreSQL for sub-second real-time state
-    if (supabaseClient) {
-      supabaseClient
-        .from('bookings')
-        .select('*')
-        .then(({ data, error }) => {
-          if (!error && Array.isArray(data)) {
-            const currentEx = getCurrentExhibition();
-            // Filter bookings for the active exhibition:
-            // Matches if explicit exhibition_id matches, OR if date falls within exhibition dates
-            const filteredData = data.filter(b => {
-              if (b.exhibition_id === currentExhibitionId) return true;
-              if (currentEx && b.date >= currentEx.startDate && b.date <= currentEx.endDate) return true;
-              return false;
-            });
-            const formatted = filteredData.map(b => ({
-              ref: b.ref,
-              exhibitionId: b.exhibition_id || currentExhibitionId,
-              salesmanId: b.salesman_id,
-              salesmanName: b.salesman_name || getSalesmanName(b.salesman_id),
-              date: b.date,
-              time: b.time,
-              firstName: b.first_name,
-              lastName: b.last_name,
-              company: b.company,
-              email: b.email,
-              phone: b.phone,
-              status: b.status || 'confirmed'
-            }));
-            processBookingsData(formatted);
-            return;
-          }
-          // Fallback to Google Apps Script if Supabase query fails
-          fetchFromGoogleAppsScript();
-        })
-        .catch(() => fetchFromGoogleAppsScript());
-    } else {
-      fetchFromGoogleAppsScript();
-    }
+    const currentEx = getCurrentExhibition();
+
+    const fetchSupabase = supabaseClient
+      ? supabaseClient.from('bookings').select('*').then(({ data, error }) => {
+          if (error || !Array.isArray(data)) return [];
+          return data.map(b => ({
+            ref: b.ref,
+            exhibitionId: b.exhibition_id || currentExhibitionId,
+            salesmanId: b.salesman_id,
+            salesmanName: b.salesman_name || getSalesmanName(b.salesman_id),
+            date: b.date,
+            time: b.time,
+            firstName: b.first_name,
+            lastName: b.last_name,
+            company: b.company,
+            email: b.email,
+            phone: b.phone,
+            status: b.status || 'confirmed'
+          }));
+        }).catch(() => [])
+      : Promise.resolve([]);
+
+    const fetchGas = APPS_SCRIPT_URL
+      ? fetch(APPS_SCRIPT_URL + '?t=' + new Date().getTime())
+          .then(res => res.json())
+          .then(data => Array.isArray(data) ? data : [])
+          .catch(() => [])
+      : Promise.resolve([]);
+
+    Promise.allSettled([fetchSupabase, fetchGas]).then(([sbRes, gasRes]) => {
+      const sbList = sbRes.status === 'fulfilled' ? sbRes.value : [];
+      const gasList = gasRes.status === 'fulfilled' ? gasRes.value : [];
+
+      // Collect all cancelled references across both data stores
+      const cancelledRefs = new Set();
+      [...sbList, ...gasList].forEach(b => {
+        if (!b || !b.ref) return;
+        if (b.status === 'cancelled' || b.ref === 'shone') {
+          cancelledRefs.add(b.ref);
+          const base = (b.ref || '').split('-P')[0];
+          if (base) cancelledRefs.add(base);
+        }
+      });
+
+      // Merge confirmed bookings:
+      // Start with Google Apps Script bookings, then overlay Supabase bookings (giving Supabase precedence)
+      const mergedMap = new Map();
+      gasList.forEach(b => {
+        if (!b || !b.ref) return;
+        const base = (b.ref || '').split('-P')[0];
+        if (cancelledRefs.has(b.ref) || cancelledRefs.has(base) || b.status === 'cancelled') return;
+        mergedMap.set(b.ref, {
+          ...b,
+          exhibitionId: b.exhibitionId || b.exhibition_id || currentExhibitionId,
+          salesmanId: b.salesmanId || b.salesman_id,
+          salesmanName: b.salesmanName || b.salesman_name || getSalesmanName(b.salesmanId || b.salesman_id),
+          status: 'confirmed'
+        });
+      });
+
+      sbList.forEach(b => {
+        if (!b || !b.ref) return;
+        const base = (b.ref || '').split('-P')[0];
+        if (cancelledRefs.has(b.ref) || cancelledRefs.has(base) || b.status === 'cancelled') {
+          mergedMap.delete(b.ref);
+          return;
+        }
+        mergedMap.set(b.ref, b);
+      });
+
+      const allMerged = Array.from(mergedMap.values());
+      const filtered = allMerged.filter(b => {
+        if (b.exhibitionId === currentExhibitionId) return true;
+        if (currentEx && b.date >= currentEx.startDate && b.date <= currentEx.endDate) return true;
+        return false;
+      });
+
+      processBookingsData(filtered);
+    }).catch(err => {
+      console.error("fetchBookings error:", err);
+      processBookingsData([]);
+    });
   }
 
   function fetchFromGoogleAppsScript() {
-    if (!APPS_SCRIPT_URL) return;
-    fetch(APPS_SCRIPT_URL + '?t=' + new Date().getTime())
-      .then(res => res.json())
-      .then(data => {
-        if (!Array.isArray(data)) { processBookingsData([]); return; }
-        const currentEx = getCurrentExhibition();
-        const filtered = data.filter(b => {
-          if (b.exhibitionId === currentExhibitionId) return true;
-          if (currentEx && b.date >= currentEx.startDate && b.date <= currentEx.endDate) return true;
-          return false;
-        });
-        processBookingsData(filtered);
-      })
-      .catch(err => console.error("Apps Script fetch error:", err));
+    fetchBookings();
   }
+
 
   function processBookingsData(data) {
     currentBookings = {};
@@ -2475,14 +2516,59 @@
     document.getElementById('editBookingLastName').value = booking.lastName || '';
     document.getElementById('editBookingCompany').value = booking.company || '';
     document.getElementById('editBookingEmail').value = booking.email || '';
-    document.getElementById('editBookingPhone').value = booking.phone || '';
-    document.getElementById('editBookingDate').value = booking.date || currentDate;
+    const cleanPhone = (booking.phone && !booking.phone.includes('#ERROR')) ? booking.phone.replace(/^'/, '') : '';
+    document.getElementById('editBookingPhone').value = cleanPhone;
 
-    const durSelect = document.getElementById('editBookingDuration');
-    if (durSelect) durSelect.value = String(curDuration);
+    // Populate active exhibition dates dynamically
+    const targetExId = booking.exhibitionId || currentExhibitionId;
+    const ex = exhibitionsList.find(e => e.id === targetExId) || getCurrentExhibition();
+    const exDates = (ex && ex.startDate && ex.endDate) ? generateDatesArray(ex.startDate, ex.endDate) : dates;
+    const dateSel = document.getElementById('editBookingDate');
+    dateSel.innerHTML = exDates.map(d => {
+      const isSel = d.value === booking.date ? 'selected' : '';
+      return `<option value="${d.value}" ${isSel}>${d.day} ${d.month} (${(d.weekday || '').slice(0,3)})</option>`;
+    }).join('');
+    if (booking.date && !exDates.some(d => d.value === booking.date)) {
+      dateSel.insertAdjacentHTML('afterbegin', `<option value="${booking.date}" selected>${booking.date}</option>`);
+    }
+    dateSel.value = booking.date || (exDates[0]?.value || currentDate);
 
     const timeSel = document.getElementById('editBookingTime');
     timeSel.innerHTML = timeSlots.map(s => `<option value="${s.value}" ${s.value === booking.time ? 'selected' : ''}>${s.label}</option>`).join('');
+    timeSel.value = booking.time;
+
+    const durSelect = document.getElementById('editBookingDuration');
+    function updateEditDurationOptions() {
+      const curDate = dateSel.value;
+      const curTime = timeSel.value;
+      const selectedDur = parseInt(durSelect.value) || curDuration;
+
+      const durOptions = [
+        { dur: 15, label: '15 Mins (1 Lot)' },
+        { dur: 30, label: '30 Mins (2 Lots)' },
+        { dur: 45, label: '45 Mins (3 Lots)' },
+        { dur: 60, label: '60 Mins (4 Lots)' }
+      ];
+
+      durSelect.innerHTML = durOptions.map(opt => {
+        const check = isConsecutiveAvailable(curDate, curTime, opt.dur, primaryRef);
+        const disabled = !check.available ? 'disabled' : '';
+        const suffix = !check.available ? ` (${check.reason || 'Unavailable'})` : '';
+        const isSelected = opt.dur === selectedDur ? 'selected' : '';
+        return `<option value="${opt.dur}" ${disabled} ${isSelected}>${opt.label}${suffix}</option>`;
+      }).join('');
+
+      // If selected option was disabled, fallback to first available
+      if (durSelect.selectedOptions[0]?.disabled) {
+        const firstAvail = Array.from(durSelect.options).find(o => !o.disabled);
+        if (firstAvail) durSelect.value = firstAvail.value;
+      }
+    }
+
+    dateSel.onchange = updateEditDurationOptions;
+    timeSel.onchange = updateEditDurationOptions;
+    durSelect.value = String(curDuration);
+    updateEditDurationOptions();
 
     document.getElementById('editBookingModal').classList.add('open');
   }
@@ -2495,12 +2581,20 @@
     e.preventDefault();
     const primaryRef = document.getElementById('editBookingRef').value;
     const bIndex = rawBookingsList.findIndex(b => b.ref === primaryRef || b.ref.startsWith(primaryRef + '-P'));
-    if (bIndex === -1) return;
+    if (bIndex === -1) {
+      showToast('Error', 'Booking reference not found.', 'error');
+      return;
+    }
 
     const newDate = document.getElementById('editBookingDate').value;
     const newTime = document.getElementById('editBookingTime').value;
     const newDuration = parseInt(document.getElementById('editBookingDuration')?.value) || 15;
     const newSlots = getConsecutiveSlots(newTime, newDuration);
+
+    if (!newDate) {
+      showToast('Invalid Date', 'Please select a valid date.', 'error');
+      return;
+    }
 
     // Validate consecutive availability, ignoring the current booking's own lots
     const check = isConsecutiveAvailable(newDate, newTime, newDuration, primaryRef);
@@ -2524,7 +2618,7 @@
     };
 
     const saveBtn = document.querySelector('#editBookingForm button[type="submit"]');
-    if (saveBtn) { saveBtn.disabled = true; saveBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i>`; }
+    if (saveBtn) { saveBtn.disabled = true; saveBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin mr-1"></i> Saving...`; }
 
     updateBookingInCloud(primaryRef, updatedBooking).then(result => {
       if (saveBtn) { saveBtn.disabled = false; saveBtn.innerHTML = 'Save Changes'; }
@@ -2537,6 +2631,9 @@
       } else {
         showToast('Update failed', result.message || 'Could not update the meeting. Please try again.', 'error');
       }
+    }).catch(err => {
+      if (saveBtn) { saveBtn.disabled = false; saveBtn.innerHTML = 'Save Changes'; }
+      showToast('Error', 'An error occurred while updating the meeting.', 'error');
     });
   }
 
@@ -2544,31 +2641,38 @@
   function updateBookingInCloud(ref, booking) {
     const duration = booking.duration || 15;
     const slotsToBook = booking.slots || getConsecutiveSlots(booking.time, duration);
+    const targetSid = booking.salesmanId || currentSalesmanId;
+    const targetExId = booking.exhibitionId || currentExhibitionId;
+    const ex = exhibitionsList.find(e => e.id === targetExId) || getCurrentExhibition();
+    const sObj = salesmen.find(s => s.id === targetSid);
+    const vTz = getVenueTimezone();
+    const vTzAbbr = getVenueTimezoneAbbr(vTz);
 
     // Refresh recent bookings record
     removeRecentBooking(ref);
     addRecentBooking(ref, {
       ...booking,
       ref: ref,
-      exhibitionId: booking.exhibitionId || currentExhibitionId,
-      salesmanId: booking.salesmanId || currentSalesmanId,
-      salesmanName: booking.salesmanName || salesmen.find(s => s.id === currentSalesmanId)?.name || currentSalesmanId,
+      exhibitionId: targetExId,
+      salesmanId: targetSid,
+      salesmanName: booking.salesmanName || sObj?.name || targetSid,
       duration: duration,
       slots: slotsToBook
     });
 
     let supabasePromise = Promise.resolve();
     if (supabaseClient) {
-      // Mark existing lots cancelled first to release old slots
+      // 1. Delete all existing parts of this booking first to prevent unique constraint conflict on ref
       supabasePromise = supabaseClient
         .from('bookings')
-        .update({ status: 'cancelled' })
+        .delete()
         .or(`ref.eq.${ref},ref.like.${ref}-P%`)
         .then(() => {
+          // 2. Prepare and upsert all new slot rows
           const rows = slotsToBook.map((slotTime, idx) => ({
             ref: idx === 0 ? ref : `${ref}-P${idx + 1}`,
-            exhibition_id: booking.exhibitionId || currentExhibitionId,
-            salesman_id: booking.salesmanId || currentSalesmanId,
+            exhibition_id: targetExId,
+            salesman_id: targetSid,
             date: booking.date,
             time: slotTime,
             first_name: booking.firstName,
@@ -2593,13 +2697,6 @@
     }
 
     if (!APPS_SCRIPT_URL) return supabasePromise.then(() => ({ status: "success" }));
-
-    const targetSid = booking.salesmanId || currentSalesmanId;
-    const targetExId = booking.exhibitionId || currentExhibitionId;
-    const ex = exhibitionsList.find(e => e.id === targetExId) || getCurrentExhibition();
-    const sObj = salesmen.find(s => s.id === targetSid);
-    const vTz = getVenueTimezone();
-    const vTzAbbr = getVenueTimezoneAbbr(vTz);
 
     const phoneClean = (booking.phone || '').trim();
     const phoneParam = phoneClean.startsWith('+') ? "'" + phoneClean : phoneClean;
@@ -2630,6 +2727,9 @@
       .then(res => res.json())
       .then(result => {
         if (result && result.status === "success") return { status: "success" };
+        if (result && result.message === "Booking reference not found") {
+          return saveBookingToCloud(booking.date, booking.time, booking).then(() => ({ status: "success" }));
+        }
         return { status: "error", message: (result && result.message) || "Update failed. Please try again." };
       })
       .catch(err => {
@@ -2646,9 +2746,10 @@
       // 1. Immediately purge all linked parts from local storage cache
       try {
         removeRecentBooking(primaryRef);
+        removeRecentBooking(ref);
         const userBookings = getUserBookings();
         for (const [key, r] of Object.entries(userBookings)) {
-          if (r === primaryRef || (typeof r === 'string' && r.startsWith(primaryRef + '-P'))) {
+          if (r === primaryRef || r === ref || (typeof r === 'string' && r.startsWith(primaryRef + '-P'))) {
             delete userBookings[key];
             const [sid, dt, tm] = key.split('_');
             delete currentBookings[`${dt}_${tm}`];
@@ -2658,23 +2759,28 @@
       } catch(e) {}
 
       // 2. Remove from active in-memory list
-      rawBookingsList = rawBookingsList.filter(x => x.ref !== primaryRef && !x.ref.startsWith(primaryRef + '-P'));
+      rawBookingsList = rawBookingsList.filter(x => x.ref !== primaryRef && !x.ref.startsWith(primaryRef + '-P') && x.ref !== ref);
 
-      // 3. Cancel in Supabase Database
+      // 3. Delete in Supabase Database permanently across all linked parts
       if (supabaseClient) {
         supabaseClient
           .from('bookings')
-          .update({ status: 'cancelled' })
-          .or(`ref.eq.${primaryRef},ref.like.${primaryRef}-P%`)
+          .delete()
+          .or(`ref.eq.${primaryRef},ref.like.${primaryRef}-P%,ref.eq.${ref}`)
           .then(() => { fetchBookings(); })
           .catch(() => {});
       }
 
-      // 4. Cancel in Google Sheets via Google Apps Script (primary ref releases all lot parts)
+      // 4. Cancel in Google Sheets via Google Apps Script (cancel primaryRef and all possible lot parts)
       if (APPS_SCRIPT_URL) {
-        const params = new URLSearchParams({ action: 'cancel', ref: primaryRef });
-        fetch(APPS_SCRIPT_URL + '?' + params.toString()).catch(() => {});
-        setTimeout(fetchBookings, 800);
+        const refsToCancel = [primaryRef, `${primaryRef}-P2`, `${primaryRef}-P3`, `${primaryRef}-P4`];
+        if (ref && !refsToCancel.includes(ref)) refsToCancel.push(ref);
+        Promise.allSettled(refsToCancel.map(r => {
+          const params = new URLSearchParams({ action: 'cancel', ref: r });
+          return fetch(APPS_SCRIPT_URL + '?' + params.toString());
+        })).then(() => {
+          setTimeout(fetchBookings, 800);
+        });
       }
 
       renderSalesmanSchedule();
@@ -2729,6 +2835,13 @@
     });
 
     const meetings = Array.from(meetingsMap.values());
+    // Sort chronologically by date and start time
+    meetings.sort((a, b) => {
+      const cmpDate = (a.date || '').localeCompare(b.date || '');
+      if (cmpDate !== 0) return cmpDate;
+      return (a.startTime || '').localeCompare(b.startTime || '');
+    });
+
     totalEl.textContent = meetings.length;
 
     if (meetings.length === 0) {
@@ -2745,6 +2858,7 @@
         const uEnd = getTimeInTimezone(b.date, endTime, venueTz, userTimezone);
         timeText += ` <span class="text-[var(--muted)] font-normal">(${uStart.time} – ${uEnd.time} ${uStart.tzAbbr})</span>`;
       }
+      const cleanPhone = (b.phone && !b.phone.includes('#ERROR')) ? b.phone.replace(/^'/, '') : '';
       return `
       <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 p-4 rounded-xl bg-white border border-[var(--border)] shadow-sm hover:border-[var(--accent-light)] transition">
         <div class="flex items-center gap-4">
@@ -2762,7 +2876,7 @@
         </div>
         <div class="flex flex-col md:items-end gap-1.5 border-t md:border-t-0 pt-2 md:pt-0 border-[var(--border)]">
           <div class="text-xs font-semibold text-[var(--fg-2)]"><i class="fa-regular fa-envelope mr-1 text-[var(--muted)]"></i>${b.email}</div>
-          <div class="text-xs text-[var(--fg-2)]"><i class="fa-solid fa-phone mr-1 text-[var(--muted)]"></i>${b.phone}</div>
+          ${cleanPhone ? `<div class="text-xs text-[var(--fg-2)]"><i class="fa-solid fa-phone mr-1 text-[var(--muted)]"></i>${cleanPhone}</div>` : ''}
           <div class="flex items-center gap-1.5 mt-1">
             <span class="text-[10px] font-mono text-[var(--accent)] bg-[var(--accent-glow)] px-2 py-0.5 rounded">Ref: ${b.ref}</span>
             <span class="text-[10px] font-semibold bg-orange-100 text-orange-800 px-2 py-0.5 rounded">${dur} Mins (${b.lotCount} Lot${b.lotCount > 1 ? 's' : ''})</span>
@@ -2801,6 +2915,12 @@
     });
 
     const meetings = Array.from(meetingsMap.values());
+    meetings.sort((a, b) => {
+      const cmpDate = (a.date || '').localeCompare(b.date || '');
+      if (cmpDate !== 0) return cmpDate;
+      return (a.startTime || '').localeCompare(b.startTime || '');
+    });
+
     if (meetings.length === 0) {
       showToast('No meetings', 'No confirmed meetings to export.', 'error');
       return;
@@ -2809,7 +2929,8 @@
     const rows = meetings.map(b => {
       const dur = b.duration || (b.lotCount ? b.lotCount * 15 : 15);
       const endTime = getMeetingEndTime(b.startTime, dur);
-      return [b.ref, b.date, b.startTime, endTime, dur, b.lotCount, `"${b.firstName}"`, `"${b.lastName}"`, `"${b.company}"`, b.email, `'${b.phone}`];
+      const phoneClean = (b.phone && !b.phone.includes('#ERROR')) ? b.phone.replace(/^'/, '') : '';
+      return [b.ref, b.date, b.startTime, endTime, dur, b.lotCount, `"${b.firstName}"`, `"${b.lastName}"`, `"${b.company}"`, b.email, `'${phoneClean}`];
     });
     const csvContent = "data:text/csv;charset=utf-8," + [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
     const link = document.createElement("a");
@@ -2819,6 +2940,7 @@
     link.click();
     document.body.removeChild(link);
   }
+
 
   function renderSalesman() {
     const s = salesmen.find(x => x.id === currentSalesmanId) || salesmen[0];
@@ -3684,11 +3806,18 @@
       return;
     }
 
+    filtered.sort((a, b) => {
+      const cmpDate = (a.date || '').localeCompare(b.date || '');
+      if (cmpDate !== 0) return cmpDate;
+      return (a.startTime || '').localeCompare(b.startTime || '');
+    });
+
     tbody.innerHTML = filtered.map(b => {
       const dur = b.duration || (b.lotCount ? b.lotCount * 15 : 15);
       const endTime = getMeetingEndTime(b.startTime, dur);
       const durBadge = dur > 15 ? `<span class="ml-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-orange-100 text-orange-800">${dur}m (${b.lotCount} lots)</span>` : '';
       const timeSpan = dur > 15 ? `${formatTime12(b.startTime)}–${formatTime12(endTime)}` : formatTime12(b.startTime);
+      const cleanPhone = (b.phone && !b.phone.includes('#ERROR')) ? b.phone.replace(/^'/, '') : '';
       return `
       <tr class="hover:bg-amber-50/50">
         <td class="p-3 font-mono font-bold text-[var(--accent)]">${b.ref || 'UO-REF'}</td>
@@ -3696,7 +3825,7 @@
         <td class="p-3 font-medium">${b.salesmanName || b.salesmanId}</td>
         <td class="p-3 font-semibold">${b.firstName} ${b.lastName}</td>
         <td class="p-3">${b.company}</td>
-        <td class="p-3 text-[11px] text-[var(--fg-2)]">${b.email}<br>${b.phone}</td>
+        <td class="p-3 text-[11px] text-[var(--fg-2)]">${b.email}${cleanPhone ? '<br>' + cleanPhone : ''}</td>
         <td class="p-3"><span class="px-2 py-0.5 rounded text-[10px] font-bold ${b.status === 'cancelled' ? 'bg-red-100 text-red-800' : 'bg-emerald-100 text-emerald-800'}">${b.status === 'cancelled' ? 'Cancelled' : 'Confirmed'}</span></td>
       </tr>
       `;
@@ -3724,6 +3853,11 @@
       }
     });
     const aggregatedList = Array.from(reportMap.values());
+    aggregatedList.sort((a, b) => {
+      const cmpDate = (a.date || '').localeCompare(b.date || '');
+      if (cmpDate !== 0) return cmpDate;
+      return (a.startTime || '').localeCompare(b.startTime || '');
+    });
 
     if (aggregatedList.length === 0) {
       showToast('No data', 'There are no bookings to export.', 'error');
@@ -3733,9 +3867,10 @@
     const rows = aggregatedList.map(b => {
       const dur = b.duration || (b.lotCount ? b.lotCount * 15 : 15);
       const endTime = getMeetingEndTime(b.startTime, dur);
+      const phoneClean = (b.phone && !b.phone.includes('#ERROR')) ? b.phone.replace(/^'/, '') : '';
       return [
         b.ref, b.exhibitionId || currentExhibitionId, b.salesmanId, b.salesmanName, b.date, b.startTime, endTime, dur, b.lotCount,
-        `"${b.firstName}"`, `"${b.lastName}"`, `"${b.company}"`, b.email, `'${b.phone}`, b.status || 'confirmed'
+        `"${b.firstName}"`, `"${b.lastName}"`, `"${b.company}"`, b.email, `'${phoneClean}`, b.status || 'confirmed'
       ];
     });
 
