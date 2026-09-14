@@ -407,6 +407,34 @@ function getSalesmanEmail(id) {
   return map[id] || '';
 }
 
+function formatTime12h(timeStr) {
+  if (!timeStr) return '';
+  const str = String(timeStr).trim();
+  if (str.toUpperCase().includes('AM') || str.toUpperCase().includes('PM')) return str;
+  const parts = str.split(':');
+  if (parts.length < 2) return str;
+  let h = parseInt(parts[0], 10);
+  const m = parts[1].padStart(2, '0');
+  if (isNaN(h)) return str;
+  const ampm = h >= 12 ? 'PM' : 'AM';
+  h = h % 12;
+  h = h ? h : 12;
+  return `${h}:${m} ${ampm}`;
+}
+
+function calculateMeetingEndTime(timeStr, durMins) {
+  if (!timeStr) return '';
+  const parts = String(timeStr).split(':');
+  if (parts.length < 2) return timeStr;
+  let h = parseInt(parts[0], 10);
+  let m = parseInt(parts[1], 10);
+  if (isNaN(h) || isNaN(m)) return timeStr;
+  const totalMins = h * 60 + m + durMins;
+  const endH = Math.floor(totalMins / 60) % 24;
+  const endM = totalMins % 60;
+  return `${String(endH).padStart(2, '0')}:${String(endM).padStart(2, '0')}`;
+}
+
 function sendConfirmationEmail(params, ref, salesmanName) {
   if (params && (params.notify === 'false' || params.silent === 'true' || params.noEmail === 'true')) return;
   const clientEmail = params.email;
@@ -415,32 +443,52 @@ function sendConfirmationEmail(params, ref, salesmanName) {
   if (!clientEmail || !clientEmail.includes('@') || clientEmail.endsWith('@example.com') || clientEmail.endsWith('@test.com')) return;
 
   const duration = parseInt(params.duration) || 15;
-  const lotCount = duration / 15;
+  const lotCount = Math.max(1, Math.round(duration / 15));
   const tzAbbr = params.venueTzAbbr || "Venue Time";
-  const timeDesc = duration > 15 ? `${params.time} ${tzAbbr} (${duration} Mins · ${lotCount} Lots)` : `${params.time} ${tzAbbr} (15 Mins)`;
+
+  // Format venue time span
+  const startTime12 = params.time12 || formatTime12h(params.time);
+  const endTime24 = params.endTime || calculateMeetingEndTime(params.time, duration);
+  const endTime12 = params.endTime12 || formatTime12h(endTime24);
+  const venueSpan = params.timeSpan || (duration > 15 ? `${startTime12} – ${endTime12}` : startTime12);
+  const venueTimeDesc = `${venueSpan} ${tzAbbr}`;
+
+  // Client local time if provided
+  const hasUserTime = !!(params.userTimeSpan && params.userTzAbbr);
+  const userTimeDesc = hasUserTime ? `${params.userDate ? params.userDate + ' at ' : ''}${params.userTimeSpan} ${params.userTzAbbr}` : '';
 
   const exTitle = params.exhibitionTitle || (params.exhibitionId ? params.exhibitionId.toUpperCase() : "Universal Oleoresins Meeting");
   const exLocation = params.exhibitionLocation ? (params.exhibitionLocation + (params.exhibitionVenue ? " (" + params.exhibitionVenue + ")" : "")) : (params.exhibitionVenue || "Universal Oleoresins Meeting Room");
 
   const subject = `Meeting Confirmation: Universal Oleoresins [Ref: ${ref}]`;
-  const bodyText = `Dear ${params.firstName} ${params.lastName},\n\n` +
+  
+  let bodyText = `Dear ${params.firstName} ${params.lastName},\n\n` +
     `Your meeting with ${salesmanName} at Universal Oleoresins is confirmed!\n\n` +
     `Meeting Details:\n` +
     `- Reference Code: ${ref}\n` +
+    `- Event: ${exTitle}\n` +
     `- Date: ${params.date}\n` +
-    `- Time: ${timeDesc}\n` +
-    `- Duration: ${duration} Minutes (${lotCount} x 15-minute lots)\n` +
+    `- Venue Time: ${venueTimeDesc}\n`;
+  if (hasUserTime) {
+    bodyText += `- Your Local Time: ${userTimeDesc}\n`;
+  }
+  bodyText += `- Duration: ${duration} Minutes (${lotCount} x 15-minute lots)\n` +
     `- Company: ${params.company}\n` +
     `- Sales Representative: ${salesmanName}\n` +
-    `- Event: ${exTitle}\n` +
     `- Location: ${exLocation}\n\n` +
+    `We look forward to meeting you at ${exTitle}!\n\n` +
     `Thank you,\nUniversal Oleoresins Team`;
+
+  let userTimeHtml = '';
+  if (hasUserTime) {
+    userTimeHtml = `<tr><td style="padding: 10px 14px; border-bottom: 1px solid #eee; font-weight: bold; color: #777;">Your Local Time:</td><td style="padding: 10px 14px; border-bottom: 1px solid #eee; color: #555;">${userTimeDesc}</td></tr>`;
+  }
 
   const bodyHtml = `
     <div style="font-family: Arial, sans-serif; color: #1a1410; max-width: 600px; margin: 0 auto; border: 1px solid #e0e0e0; border-radius: 12px; overflow: hidden;">
-      <div style="background-color: #d54e1f; padding: 20px; text-align: center; color: white;">
-        <h2 style="margin: 0; font-size: 22px;">UNIVERSAL OLEORESINS</h2>
-        <p style="margin: 5px 0 0 0; font-size: 13px; opacity: 0.9;">Meeting Confirmation · ${exTitle}</p>
+      <div style="background-color: #d54e1f; padding: 22px 20px; text-align: center; color: white;">
+        <h2 style="margin: 0; font-size: 22px; letter-spacing: 0.5px;">UNIVERSAL OLEORESINS</h2>
+        <p style="margin: 6px 0 0 0; font-size: 13px; opacity: 0.92; font-weight: 500;">Meeting Confirmation · ${exTitle}</p>
       </div>
       <div style="padding: 24px; background-color: #ffffff;">
         <p style="font-size: 16px; margin-top: 0;">Dear <strong>${params.firstName} ${params.lastName}</strong>,</p>
@@ -448,14 +496,16 @@ function sendConfirmationEmail(params, ref, salesmanName) {
         
         <table style="width: 100%; border-collapse: collapse; margin: 20px 0; background-color: #fbf7f0; border-radius: 8px; overflow: hidden;">
           <tr><td style="padding: 10px 14px; border-bottom: 1px solid #eee; font-weight: bold; width: 40%;">Reference Code:</td><td style="padding: 10px 14px; border-bottom: 1px solid #eee; color: #d54e1f; font-weight: bold;">${ref}</td></tr>
-          <tr><td style="padding: 10px 14px; border-bottom: 1px solid #eee; font-weight: bold;">Date & Time:</td><td style="padding: 10px 14px; border-bottom: 1px solid #eee;">${params.date} at ${params.time} (${tzAbbr})</td></tr>
-          <tr><td style="padding: 10px 14px; border-bottom: 1px solid #eee; font-weight: bold;">Duration:</td><td style="padding: 10px 14px; border-bottom: 1px solid #eee; color: #d54e1f; font-weight: bold;">${duration} Minutes (${lotCount} x 15-min lots)</td></tr>
+          <tr><td style="padding: 10px 14px; border-bottom: 1px solid #eee; font-weight: bold;">Event:</td><td style="padding: 10px 14px; border-bottom: 1px solid #eee; font-weight: bold;">${exTitle}</td></tr>
+          <tr><td style="padding: 10px 14px; border-bottom: 1px solid #eee; font-weight: bold;">Date & Time (Venue):</td><td style="padding: 10px 14px; border-bottom: 1px solid #eee; color: #d54e1f; font-weight: bold;">${params.date} at ${venueTimeDesc}</td></tr>
+          ${userTimeHtml}
+          <tr><td style="padding: 10px 14px; border-bottom: 1px solid #eee; font-weight: bold;">Duration:</td><td style="padding: 10px 14px; border-bottom: 1px solid #eee;">${duration} Minutes (${lotCount} x 15-min lots)</td></tr>
           <tr><td style="padding: 10px 14px; border-bottom: 1px solid #eee; font-weight: bold;">Representative:</td><td style="padding: 10px 14px; border-bottom: 1px solid #eee;">${salesmanName}</td></tr>
           <tr><td style="padding: 10px 14px; border-bottom: 1px solid #eee; font-weight: bold;">Company:</td><td style="padding: 10px 14px; border-bottom: 1px solid #eee;">${params.company}</td></tr>
           <tr><td style="padding: 10px 14px; font-weight: bold;">Location:</td><td style="padding: 10px 14px;">${exLocation}</td></tr>
         </table>
 
-        <p style="font-size: 13px; color: #666;">We look forward to meeting you at ${exTitle}!</p>
+        <p style="font-size: 13px; color: #666; margin-top: 20px;">We look forward to meeting you at ${exTitle}!</p>
       </div>
     </div>
   `;
@@ -476,7 +526,7 @@ function sendConfirmationEmail(params, ref, salesmanName) {
     try {
       MailApp.sendEmail({
         to: salesmanEmail,
-        subject: `New Meeting Booked: ${params.firstName} ${params.lastName} (${params.company}) [Ref: ${ref}]`,
+        subject: `New Meeting Booked (${duration} Mins): ${params.firstName} ${params.lastName} (${params.company}) [Ref: ${ref}]`,
         body: bodyText,
         htmlBody: bodyHtml
       });
@@ -498,32 +548,52 @@ function sendUpdateEmail(params, ref, salesmanName, salesmanId) {
   if (!clientEmail || !clientEmail.includes('@') || clientEmail.endsWith('@example.com') || clientEmail.endsWith('@test.com')) return;
 
   const duration = parseInt(params.duration) || 15;
-  const lotCount = duration / 15;
+  const lotCount = Math.max(1, Math.round(duration / 15));
   const tzAbbr = params.venueTzAbbr || "Venue Time";
-  const timeDesc = duration > 15 ? `${params.time} ${tzAbbr} (${duration} Mins · ${lotCount} Lots)` : `${params.time} ${tzAbbr} (15 Mins)`;
+
+  // Format venue time span
+  const startTime12 = params.time12 || formatTime12h(params.time);
+  const endTime24 = params.endTime || calculateMeetingEndTime(params.time, duration);
+  const endTime12 = params.endTime12 || formatTime12h(endTime24);
+  const venueSpan = params.timeSpan || (duration > 15 ? `${startTime12} – ${endTime12}` : startTime12);
+  const venueTimeDesc = `${venueSpan} ${tzAbbr}`;
+
+  // Client local time if provided
+  const hasUserTime = !!(params.userTimeSpan && params.userTzAbbr);
+  const userTimeDesc = hasUserTime ? `${params.userDate ? params.userDate + ' at ' : ''}${params.userTimeSpan} ${params.userTzAbbr}` : '';
 
   const exTitle = params.exhibitionTitle || (params.exhibitionId ? params.exhibitionId.toUpperCase() : "Universal Oleoresins Meeting");
   const exLocation = params.exhibitionLocation ? (params.exhibitionLocation + (params.exhibitionVenue ? " (" + params.exhibitionVenue + ")" : "")) : (params.exhibitionVenue || "Universal Oleoresins Meeting Room");
 
   const subject = `Updated Meeting Schedule: Universal Oleoresins [Ref: ${ref}]`;
-  const bodyText = `Dear ${params.firstName} ${params.lastName},\n\n` +
+  
+  let bodyText = `Dear ${params.firstName} ${params.lastName},\n\n` +
     `Your meeting with ${salesmanName} at Universal Oleoresins has been updated/rescheduled.\n\n` +
     `Updated Meeting Details:\n` +
     `- Reference Code: ${ref}\n` +
+    `- Event: ${exTitle}\n` +
     `- New Date: ${params.date}\n` +
-    `- New Time: ${timeDesc}\n` +
-    `- Duration: ${duration} Minutes (${lotCount} x 15-minute lots)\n` +
+    `- New Venue Time: ${venueTimeDesc}\n`;
+  if (hasUserTime) {
+    bodyText += `- Your Local Time: ${userTimeDesc}\n`;
+  }
+  bodyText += `- Duration: ${duration} Minutes (${lotCount} x 15-minute lots)\n` +
     `- Company: ${params.company}\n` +
     `- Representative: ${salesmanName}\n` +
-    `- Event: ${exTitle}\n` +
     `- Location: ${exLocation}\n\n` +
+    `We look forward to meeting you at ${exTitle}!\n\n` +
     `Thank you,\nUniversal Oleoresins Team`;
+
+  let userTimeHtml = '';
+  if (hasUserTime) {
+    userTimeHtml = `<tr><td style="padding: 10px 14px; border-bottom: 1px solid #eee; font-weight: bold; color: #777;">Your Local Time:</td><td style="padding: 10px 14px; border-bottom: 1px solid #eee; color: #555;">${userTimeDesc}</td></tr>`;
+  }
 
   const bodyHtml = `
     <div style="font-family: Arial, sans-serif; color: #1a1410; max-width: 600px; margin: 0 auto; border: 1px solid #e0e0e0; border-radius: 12px; overflow: hidden;">
-      <div style="background-color: #e8852b; padding: 20px; text-align: center; color: white;">
-        <h2 style="margin: 0; font-size: 22px;">UNIVERSAL OLEORESINS</h2>
-        <p style="margin: 5px 0 0 0; font-size: 13px; opacity: 0.9;">Meeting Updated / Rescheduled · ${exTitle}</p>
+      <div style="background-color: #e8852b; padding: 22px 20px; text-align: center; color: white;">
+        <h2 style="margin: 0; font-size: 22px; letter-spacing: 0.5px;">UNIVERSAL OLEORESINS</h2>
+        <p style="margin: 6px 0 0 0; font-size: 13px; opacity: 0.92; font-weight: 500;">Meeting Updated / Rescheduled · ${exTitle}</p>
       </div>
       <div style="padding: 24px; background-color: #ffffff;">
         <p style="font-size: 16px; margin-top: 0;">Dear <strong>${params.firstName} ${params.lastName}</strong>,</p>
@@ -531,21 +601,23 @@ function sendUpdateEmail(params, ref, salesmanName, salesmanId) {
         
         <table style="width: 100%; border-collapse: collapse; margin: 20px 0; background-color: #fbf7f0; border-radius: 8px; overflow: hidden;">
           <tr><td style="padding: 10px 14px; border-bottom: 1px solid #eee; font-weight: bold; width: 40%;">Reference Code:</td><td style="padding: 10px 14px; border-bottom: 1px solid #eee; color: #d54e1f; font-weight: bold;">${ref}</td></tr>
-          <tr><td style="padding: 10px 14px; border-bottom: 1px solid #eee; font-weight: bold;">New Date & Time:</td><td style="padding: 10px 14px; border-bottom: 1px solid #eee; color: #d54e1f; font-weight: bold;">${params.date} at ${params.time} (${tzAbbr})</td></tr>
+          <tr><td style="padding: 10px 14px; border-bottom: 1px solid #eee; font-weight: bold;">Event:</td><td style="padding: 10px 14px; border-bottom: 1px solid #eee; font-weight: bold;">${exTitle}</td></tr>
+          <tr><td style="padding: 10px 14px; border-bottom: 1px solid #eee; font-weight: bold;">New Date & Time (Venue):</td><td style="padding: 10px 14px; border-bottom: 1px solid #eee; color: #d54e1f; font-weight: bold;">${params.date} at ${venueTimeDesc}</td></tr>
+          ${userTimeHtml}
           <tr><td style="padding: 10px 14px; border-bottom: 1px solid #eee; font-weight: bold;">Duration:</td><td style="padding: 10px 14px; border-bottom: 1px solid #eee; color: #d54e1f; font-weight: bold;">${duration} Minutes (${lotCount} x 15-min lots)</td></tr>
           <tr><td style="padding: 10px 14px; border-bottom: 1px solid #eee; font-weight: bold;">Representative:</td><td style="padding: 10px 14px; border-bottom: 1px solid #eee;">${salesmanName}</td></tr>
           <tr><td style="padding: 10px 14px; border-bottom: 1px solid #eee; font-weight: bold;">Company:</td><td style="padding: 10px 14px; border-bottom: 1px solid #eee;">${params.company}</td></tr>
           <tr><td style="padding: 10px 14px; font-weight: bold;">Location:</td><td style="padding: 10px 14px;">${exLocation}</td></tr>
         </table>
 
-        <p style="font-size: 13px; color: #666;">We look forward to meeting you at ${exTitle}!</p>
+        <p style="font-size: 13px; color: #666; margin-top: 20px;">We look forward to meeting you at ${exTitle}!</p>
       </div>
     </div>
   `;
 
   try { MailApp.sendEmail({ to: clientEmail, subject: subject, body: bodyText, htmlBody: bodyHtml }); } catch(e) { try { GmailApp.sendEmail(clientEmail, subject, bodyText, { htmlBody: bodyHtml }); } catch(err) {} }
   if (salesmanEmail && salesmanEmail !== clientEmail) {
-    try { MailApp.sendEmail({ to: salesmanEmail, subject: `Meeting Updated: ${params.firstName} ${params.lastName} [Ref: ${ref}]`, body: bodyText, htmlBody: bodyHtml }); } catch(e) { try { GmailApp.sendEmail(salesmanEmail, `Meeting Updated: ${params.firstName} ${params.lastName}`, bodyText, { htmlBody: bodyHtml }); } catch(err) {} }
+    try { MailApp.sendEmail({ to: salesmanEmail, subject: `Meeting Updated (${duration} Mins): ${params.firstName} ${params.lastName} [Ref: ${ref}]`, body: bodyText, htmlBody: bodyHtml }); } catch(e) { try { GmailApp.sendEmail(salesmanEmail, `Meeting Updated: ${params.firstName} ${params.lastName}`, bodyText, { htmlBody: bodyHtml }); } catch(err) {} }
   }
 }
 
@@ -553,24 +625,29 @@ function sendCancellationEmail(clientEmail, salesmanEmail, ref, firstName, lastN
   if (params && (params.notify === 'false' || params.silent === 'true' || params.noEmail === 'true')) return;
   if (!clientEmail || !clientEmail.includes('@') || clientEmail.endsWith('@example.com') || clientEmail.endsWith('@test.com')) return;
 
+  const exTitle = (params && params.exhibitionTitle) ? params.exhibitionTitle : "Universal Oleoresins Exhibition";
+  const tzAbbr = (params && params.venueTzAbbr) ? ` ${params.venueTzAbbr}` : '';
+  const timeFormatted = formatTime12h(time) + tzAbbr;
+
   const subject = `Meeting Cancelled: Universal Oleoresins [Ref: ${ref}]`;
   const bodyText = `Dear ${firstName} ${lastName},\n\n` +
-    `Your meeting scheduled for ${date} at ${time} with ${salesmanName} at Universal Oleoresins has been cancelled.\n\n` +
+    `Your meeting scheduled for ${date} at ${timeFormatted} with ${salesmanName} at Universal Oleoresins (${exTitle}) has been cancelled.\n\n` +
     `Reference Code: ${ref}\n` +
+    `Event: ${exTitle}\n` +
     `Company: ${company}\n\n` +
     `All reserved slots for this meeting have been released. If you wish to reschedule, please visit our scheduler website.\n\n` +
     `Thank you,\nUniversal Oleoresins Team`;
 
   const bodyHtml = `
     <div style="font-family: Arial, sans-serif; color: #1a1410; max-width: 600px; margin: 0 auto; border: 1px solid #e0e0e0; border-radius: 12px; overflow: hidden;">
-      <div style="background-color: #666666; padding: 20px; text-align: center; color: white;">
-        <h2 style="margin: 0; font-size: 22px;">UNIVERSAL OLEORESINS</h2>
-        <p style="margin: 5px 0 0 0; font-size: 13px; opacity: 0.9;">Meeting Cancellation Notice</p>
+      <div style="background-color: #555555; padding: 22px 20px; text-align: center; color: white;">
+        <h2 style="margin: 0; font-size: 22px; letter-spacing: 0.5px;">UNIVERSAL OLEORESINS</h2>
+        <p style="margin: 6px 0 0 0; font-size: 13px; opacity: 0.92; font-weight: 500;">Meeting Cancellation Notice · ${exTitle}</p>
       </div>
       <div style="padding: 24px; background-color: #ffffff;">
         <p style="font-size: 16px; margin-top: 0;">Dear <strong>${firstName} ${lastName}</strong>,</p>
-        <p style="font-size: 14px; color: #4a3f33; line-height: 1.5;">This is to confirm that your meeting scheduled for <strong>${date} at ${time}</strong> with ${salesmanName} (${company}) has been cancelled and the slot has been released.</p>
-        <p style="font-size: 13px; color: #666;">If you would like to pick a different date or time, please feel free to book a new slot on our online scheduler.</p>
+        <p style="font-size: 14px; color: #4a3f33; line-height: 1.5;">This is to confirm that your meeting scheduled for <strong>${date} at ${timeFormatted}</strong> with ${salesmanName} (${company}) at <strong>${exTitle}</strong> has been cancelled and the slot has been released.</p>
+        <p style="font-size: 13px; color: #666; margin-top: 20px;">If you would like to pick a different date or time, please feel free to book a new slot on our online scheduler.</p>
       </div>
     </div>
   `;

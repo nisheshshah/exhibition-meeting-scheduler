@@ -64,13 +64,21 @@ CREATE TABLE IF NOT EXISTS public.exhibition_team (
     CONSTRAINT fk_salesman FOREIGN KEY (salesman_id) REFERENCES public.salesmen(id) ON DELETE CASCADE
 );
 
--- Assign all salesmen to Fi India 2026 & Staging
+-- Assign all salesmen to IFEAT 2026, Fi India 2026, Staging & Gulfood
+INSERT INTO public.exhibition_team (exhibition_id, salesman_id)
+SELECT 'ifeat-2026', id FROM public.salesmen
+ON CONFLICT DO NOTHING;
+
 INSERT INTO public.exhibition_team (exhibition_id, salesman_id)
 SELECT 'fi-india-2026', id FROM public.salesmen
 ON CONFLICT DO NOTHING;
 
 INSERT INTO public.exhibition_team (exhibition_id, salesman_id)
 SELECT 'fi-india-2026-dev', id FROM public.salesmen
+ON CONFLICT DO NOTHING;
+
+INSERT INTO public.exhibition_team (exhibition_id, salesman_id)
+SELECT 'gulfood-2027', id FROM public.salesmen
 ON CONFLICT DO NOTHING;
 
 -- 4. Create Bookings Table

@@ -1721,6 +1721,20 @@
       const sObj = salesmen.find(s => s.id === currentSalesmanId);
       const vTz = getVenueTimezone();
       const vTzAbbr = getVenueTimezoneAbbr(vTz);
+      const endTimeVenue = getMeetingEndTime(time, duration);
+      const timeSpanVenue = `${formatTime12(time)} – ${formatTime12(endTimeVenue)}`;
+
+      // Calculate client's local time if their timezone differs from venue
+      let userTimeSpan = '';
+      let userTzAbbr = '';
+      let userDateStr = '';
+      if (userTimezone && userTimezone !== vTz) {
+        const uStart = getTimeInTimezone(date, time, vTz, userTimezone);
+        const uEnd = getTimeInTimezone(date, endTimeVenue, vTz, userTimezone);
+        userTimeSpan = `${uStart.time} – ${uEnd.time}`;
+        userTzAbbr = uStart.tzAbbr || '';
+        userDateStr = (uStart.dayDiff !== 0) ? uStart.targetDateStr : '';
+      }
 
       slotsToBook.forEach((slotTime, idx) => {
         const partRef = idx === 0 ? primaryRef : `${primaryRef}-P${idx + 1}`;
@@ -1737,6 +1751,12 @@
           date: date,
           time: slotTime,
           duration: duration,
+          time12: formatTime12(time),
+          endTime12: formatTime12(endTimeVenue),
+          timeSpan: timeSpanVenue,
+          userTimeSpan: userTimeSpan,
+          userTzAbbr: userTzAbbr,
+          userDate: userDateStr,
           slotCount: slotsToBook.length,
           slots: slotsToBook.join(','),
           firstName: booking.firstName,
@@ -1745,8 +1765,8 @@
           email: booking.email,
           phone: phoneParam,
           ref: partRef,
-          notify: 'false',
-          silent: 'true'
+          notify: idx === 0 ? 'true' : 'false',
+          silent: idx === 0 ? 'false' : 'true'
         });
         fetch(APPS_SCRIPT_URL + '?' + params.toString()).catch(err => {
           console.warn("Background Google Apps Script slot sync error:", err);
@@ -2726,12 +2746,32 @@
 
     const phoneClean = getCleanPhone(booking.phone);
     const phoneParam = phoneClean ? ("'" + phoneClean.replace(/^'+/, '')) : '';
+    const endTimeVenue = getMeetingEndTime(booking.time, duration);
+    const timeSpanVenue = `${formatTime12(booking.time)} – ${formatTime12(endTimeVenue)}`;
+
+    let userTimeSpan = '';
+    let userTzAbbr = '';
+    let userDateStr = '';
+    if (userTimezone && userTimezone !== vTz) {
+      const uStart = getTimeInTimezone(booking.date, booking.time, vTz, userTimezone);
+      const uEnd = getTimeInTimezone(booking.date, endTimeVenue, vTz, userTimezone);
+      userTimeSpan = `${uStart.time} – ${uEnd.time}`;
+      userTzAbbr = uStart.tzAbbr || '';
+      userDateStr = (uStart.dayDiff !== 0) ? uStart.targetDateStr : '';
+    }
+
     const params = new URLSearchParams({
       action: 'update',
       ref: ref,
       date: booking.date,
       time: booking.time,
       duration: duration,
+      time12: formatTime12(booking.time),
+      endTime12: formatTime12(endTimeVenue),
+      timeSpan: timeSpanVenue,
+      userTimeSpan: userTimeSpan,
+      userTzAbbr: userTzAbbr,
+      userDate: userDateStr,
       slotCount: slotsToBook.length,
       slots: slotsToBook.join(','),
       firstName: booking.firstName,
@@ -2747,8 +2787,8 @@
       exhibitionVenue: ex ? ex.venue : '',
       exhibitionLocation: ex ? ex.location : '',
       venueTzAbbr: vTzAbbr,
-      notify: 'false',
-      silent: 'true'
+      notify: 'true',
+      silent: 'false'
     });
 
     return fetch(APPS_SCRIPT_URL + '?' + params.toString())
@@ -3437,11 +3477,18 @@
 
     // Cancel in Google Sheets via Google Apps Script (primary ref + all linked lot parts)
     if (primaryRef && APPS_SCRIPT_URL) {
-      const refsToCancel = [primaryRef, `${primaryRef}-P2`, `${primaryRef}-P3`, `${primaryRef}-P4`];
-      refsToCancel.forEach(r => {
-        const params = new URLSearchParams({ action: 'cancel', ref: r });
-        fetch(APPS_SCRIPT_URL + '?' + params.toString()).catch(() => {});
+      const ex = getCurrentExhibition();
+      const vTz = getVenueTimezone();
+      const vTzAbbr = getVenueTimezoneAbbr(vTz);
+      const params = new URLSearchParams({
+        action: 'cancel',
+        ref: primaryRef,
+        exhibitionTitle: ex ? ex.title : currentExhibitionId,
+        venueTzAbbr: vTzAbbr,
+        notify: 'true',
+        silent: 'false'
       });
+      fetch(APPS_SCRIPT_URL + '?' + params.toString()).catch(() => {});
       setTimeout(fetchBookings, 800);
     }
 
