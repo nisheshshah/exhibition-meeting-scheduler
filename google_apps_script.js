@@ -29,8 +29,12 @@ function doPost(e) {
     const data = JSON.parse(e.postData.contents);
     if (data.action === 'book') {
       return handleBook(data);
+    } else if (data.action === 'update') {
+      return handleUpdate(data);
     } else if (data.action === 'cancel') {
       return handleCancel(data);
+    } else if (data.action === 'report') {
+      return handleReport(data);
     } else {
       return handleFetch(data);
     }
@@ -128,10 +132,11 @@ function handleBook(params) {
 
     const timestamp = new Date().toISOString();
     const ref = params.ref || ('UO-' + Math.random().toString(36).substring(2, 8).toUpperCase());
+    const baseRef = ref.split('-P')[0];
     const salesmanName = params.salesmanName || getSalesmanName(salesmanId);
 
     slotsToBook.forEach((slotTime, idx) => {
-      const partRef = idx === 0 ? ref : (ref + '-P' + (idx + 1));
+      const partRef = idx === 0 ? ref : (baseRef + '-P' + (idx + 1));
       sheet.appendRow([
         timestamp,
         partRef,
@@ -151,11 +156,11 @@ function handleBook(params) {
 
     // Send automated email confirmation to client & sales representative (skip if notify=false or silent=true)
     if (!params || (params.notify !== 'false' && params.silent !== 'true' && params.noEmail !== 'true')) {
-      sendConfirmationEmail(params, ref, salesmanName);
+      sendConfirmationEmail(params, baseRef, salesmanName);
     }
 
     lock.releaseLock();
-    return jsonResponse({ status: "success", ref: ref, date: dateStr, time: timeStr, duration: duration, slots: slotsToBook });
+    return jsonResponse({ status: "success", ref: baseRef, date: dateStr, time: timeStr, duration: duration, slots: slotsToBook });
   } catch (err) {
     lock.releaseLock();
     return jsonResponse({ status: "error", message: err.toString() });
@@ -242,7 +247,12 @@ function handleUpdate(params) {
 
     // Send updated meeting email notification to client & sales representative (skip if notify=false or silent=true)
     if (!params || (params.notify !== 'false' && params.silent !== 'true' && params.noEmail !== 'true')) {
-      sendUpdateEmail(params, ref, salesmanName, targetSalesmanId);
+      const updateParams = Object.assign({}, params || {}, {
+        exhibitionId: (params && params.exhibitionId) || targetExhibitionId,
+        date: (params && params.date) || newDate,
+        time: (params && params.time) || newTime
+      });
+      sendUpdateEmail(updateParams, ref, salesmanName, targetSalesmanId);
     }
 
     lock.releaseLock();
@@ -275,6 +285,7 @@ function handleCancel(params) {
         if (!cancelInfo) {
           cancelInfo = {
             clientEmail: row[10],
+            exhibitionId: row[2],
             salesmanId: row[3],
             salesmanName: row[4],
             salesmanEmail: getSalesmanEmail(row[3]),
@@ -294,10 +305,15 @@ function handleCancel(params) {
     if (found && cancelInfo) {
       // Send single cancellation email notification to client & sales representative (skip if notify=false or silent=true)
       if (!params || (params.notify !== 'false' && params.silent !== 'true' && params.noEmail !== 'true')) {
+        const cancelParams = Object.assign({}, params || {}, {
+          exhibitionId: (params && params.exhibitionId) || cancelInfo.exhibitionId,
+          date: (params && params.date) || cancelInfo.date,
+          time: (params && params.time) || cancelInfo.time
+        });
         sendCancellationEmail(
           cancelInfo.clientEmail, cancelInfo.salesmanEmail, ref,
           cancelInfo.firstName, cancelInfo.lastName, cancelInfo.company,
-          cancelInfo.date, cancelInfo.time, cancelInfo.salesmanName, params
+          cancelInfo.date, cancelInfo.time, cancelInfo.salesmanName, cancelParams
         );
       }
       return jsonResponse({ status: "success", message: "Booking deleted permanently" });
@@ -435,30 +451,114 @@ function calculateMeetingEndTime(timeStr, durMins) {
   return `${String(endH).padStart(2, '0')}:${String(endM).padStart(2, '0')}`;
 }
 
+function resolveExhibitionMetadata(params) {
+  params = params || {};
+  const rawExId = params.exhibitionId || params.e || '';
+  const exId = String(rawExId).trim().toLowerCase();
+  const dateStr = String(params.date || '').trim();
+
+  // Known exhibitions catalog for fallback inference
+  const KNOWN_EXHIBITIONS = {
+    'ifeat-2026': {
+      title: 'IFEAT 2026 Bangkok',
+      venue: "Marriott Marquis Queen's Park, Bangkok, Thailand",
+      location: 'Universal Oleoresins Suite / Meeting Room',
+      tzAbbr: 'ICT'
+    },
+    'fi-india-2026': {
+      title: 'Fi India 2026',
+      venue: '(BEC), Goregaon, Mumbai',
+      location: 'Stall 3D38, Hall 3',
+      tzAbbr: 'IST'
+    },
+    'gulfood-2027': {
+      title: 'Gulfood Dubai 2027',
+      venue: 'Dubai World Trade Centre, UAE',
+      location: 'Hall 4, Stand S4-C12',
+      tzAbbr: 'GST'
+    }
+  };
+
+  // 1. Identify preset match by ID or by Date range
+  let preset = KNOWN_EXHIBITIONS[exId] || null;
+  if (!preset && dateStr) {
+    if (dateStr >= '2026-10-01' && dateStr <= '2026-10-31') {
+      preset = KNOWN_EXHIBITIONS['ifeat-2026'];
+    } else if (dateStr >= '2026-08-01' && dateStr <= '2026-08-31') {
+      preset = KNOWN_EXHIBITIONS['fi-india-2026'];
+    } else if (dateStr >= '2027-02-01' && dateStr <= '2027-02-28') {
+      preset = KNOWN_EXHIBITIONS['gulfood-2027'];
+    }
+  }
+
+  // 2. Resolve Title
+  let title = (params.exhibitionTitle && String(params.exhibitionTitle).trim()) || '';
+  if (!title && preset) title = preset.title;
+  if (!title && rawExId && rawExId !== 'default-event') {
+    title = String(rawExId).replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+  }
+  if (!title) title = 'Universal Oleoresins Exhibition';
+
+  // 3. Resolve Venue & Location
+  let venue = (params.exhibitionVenue && String(params.exhibitionVenue).trim()) || '';
+  if (!venue && preset) venue = preset.venue;
+
+  let location = (params.exhibitionLocation && String(params.exhibitionLocation).trim()) || '';
+  if (!location && preset) location = preset.location;
+  if (!location) location = 'Universal Oleoresins Suite / Meeting Room';
+
+  // Format combined location: "Room / Stall (Venue)"
+  let fullLocation = location;
+  if (venue && !location.toLowerCase().includes(venue.toLowerCase())) {
+    fullLocation = `${location} (${venue})`;
+  }
+
+  // 4. Resolve Timezone Abbreviation
+  let tzAbbr = (params.venueTzAbbr && String(params.venueTzAbbr).trim()) || '';
+  if (!tzAbbr && preset) tzAbbr = preset.tzAbbr;
+  if (!tzAbbr) {
+    if (title.toLowerCase().includes('ifeat') || title.toLowerCase().includes('bangkok') || (dateStr >= '2026-10-01' && dateStr <= '2026-10-31')) {
+      tzAbbr = 'ICT';
+    } else if (title.toLowerCase().includes('fi india') || title.toLowerCase().includes('mumbai') || (dateStr >= '2026-08-01' && dateStr <= '2026-08-31')) {
+      tzAbbr = 'IST';
+    } else if (title.toLowerCase().includes('gulfood') || title.toLowerCase().includes('dubai') || (dateStr >= '2027-02-01' && dateStr <= '2027-02-28')) {
+      tzAbbr = 'GST';
+    } else {
+      tzAbbr = 'Venue Time';
+    }
+  }
+
+  return { title, venue, location: fullLocation, tzAbbr };
+}
+
 function sendConfirmationEmail(params, ref, salesmanName) {
   if (params && (params.notify === 'false' || params.silent === 'true' || params.noEmail === 'true')) return;
-  const clientEmail = params.email;
+  const clientEmail = (params.email || '').trim();
   const salesmanEmail = params.salesmanEmail || getSalesmanEmail(params.salesmanId || params.s);
   
-  if (!clientEmail || !clientEmail.includes('@') || clientEmail.endsWith('@example.com') || clientEmail.endsWith('@test.com')) return;
+  if (!clientEmail || !clientEmail.includes('@') || 
+      clientEmail.endsWith('@example.com') || 
+      clientEmail.endsWith('@test.com') || 
+      clientEmail.endsWith('@sample.com') ||
+      clientEmail.endsWith('@localhost')) return;
 
   const duration = parseInt(params.duration) || 15;
   const lotCount = Math.max(1, Math.round(duration / 15));
-  const tzAbbr = params.venueTzAbbr || "Venue Time";
+  const meta = resolveExhibitionMetadata(params);
+  const exTitle = meta.title;
+  const exLocation = meta.location;
+  const tzAbbr = meta.tzAbbr;
 
   // Format venue time span
   const startTime12 = params.time12 || formatTime12h(params.time);
   const endTime24 = params.endTime || calculateMeetingEndTime(params.time, duration);
   const endTime12 = params.endTime12 || formatTime12h(endTime24);
-  const venueSpan = params.timeSpan || (duration > 15 ? `${startTime12} – ${endTime12}` : startTime12);
+  const venueSpan = params.timeSpan || (duration > 15 ? `${startTime12} – ${endTime12}` : `${startTime12} – ${endTime12}`);
   const venueTimeDesc = `${venueSpan} ${tzAbbr}`;
 
   // Client local time if provided
   const hasUserTime = !!(params.userTimeSpan && params.userTzAbbr);
   const userTimeDesc = hasUserTime ? `${params.userDate ? params.userDate + ' at ' : ''}${params.userTimeSpan} ${params.userTzAbbr}` : '';
-
-  const exTitle = params.exhibitionTitle || (params.exhibitionId ? params.exhibitionId.toUpperCase() : "Universal Oleoresins Meeting");
-  const exLocation = params.exhibitionLocation ? (params.exhibitionLocation + (params.exhibitionVenue ? " (" + params.exhibitionVenue + ")" : "")) : (params.exhibitionVenue || "Universal Oleoresins Meeting Room");
 
   const subject = `Meeting Confirmation: Universal Oleoresins [Ref: ${ref}]`;
   
@@ -542,28 +642,32 @@ function sendConfirmationEmail(params, ref, salesmanName) {
 
 function sendUpdateEmail(params, ref, salesmanName, salesmanId) {
   if (params && (params.notify === 'false' || params.silent === 'true' || params.noEmail === 'true')) return;
-  const clientEmail = params.email;
+  const clientEmail = (params.email || '').trim();
   const salesmanEmail = params.salesmanEmail || getSalesmanEmail(salesmanId || params.salesmanId || params.s);
   
-  if (!clientEmail || !clientEmail.includes('@') || clientEmail.endsWith('@example.com') || clientEmail.endsWith('@test.com')) return;
+  if (!clientEmail || !clientEmail.includes('@') || 
+      clientEmail.endsWith('@example.com') || 
+      clientEmail.endsWith('@test.com') || 
+      clientEmail.endsWith('@sample.com') ||
+      clientEmail.endsWith('@localhost')) return;
 
   const duration = parseInt(params.duration) || 15;
   const lotCount = Math.max(1, Math.round(duration / 15));
-  const tzAbbr = params.venueTzAbbr || "Venue Time";
+  const meta = resolveExhibitionMetadata(params);
+  const exTitle = meta.title;
+  const exLocation = meta.location;
+  const tzAbbr = meta.tzAbbr;
 
   // Format venue time span
   const startTime12 = params.time12 || formatTime12h(params.time);
   const endTime24 = params.endTime || calculateMeetingEndTime(params.time, duration);
   const endTime12 = params.endTime12 || formatTime12h(endTime24);
-  const venueSpan = params.timeSpan || (duration > 15 ? `${startTime12} – ${endTime12}` : startTime12);
+  const venueSpan = params.timeSpan || (duration > 15 ? `${startTime12} – ${endTime12}` : `${startTime12} – ${endTime12}`);
   const venueTimeDesc = `${venueSpan} ${tzAbbr}`;
 
   // Client local time if provided
   const hasUserTime = !!(params.userTimeSpan && params.userTzAbbr);
   const userTimeDesc = hasUserTime ? `${params.userDate ? params.userDate + ' at ' : ''}${params.userTimeSpan} ${params.userTzAbbr}` : '';
-
-  const exTitle = params.exhibitionTitle || (params.exhibitionId ? params.exhibitionId.toUpperCase() : "Universal Oleoresins Meeting");
-  const exLocation = params.exhibitionLocation ? (params.exhibitionLocation + (params.exhibitionVenue ? " (" + params.exhibitionVenue + ")" : "")) : (params.exhibitionVenue || "Universal Oleoresins Meeting Room");
 
   const subject = `Updated Meeting Schedule: Universal Oleoresins [Ref: ${ref}]`;
   
@@ -623,17 +727,25 @@ function sendUpdateEmail(params, ref, salesmanName, salesmanId) {
 
 function sendCancellationEmail(clientEmail, salesmanEmail, ref, firstName, lastName, company, date, time, salesmanName, params) {
   if (params && (params.notify === 'false' || params.silent === 'true' || params.noEmail === 'true')) return;
-  if (!clientEmail || !clientEmail.includes('@') || clientEmail.endsWith('@example.com') || clientEmail.endsWith('@test.com')) return;
+  clientEmail = (clientEmail || '').trim();
+  if (!clientEmail || !clientEmail.includes('@') || 
+      clientEmail.endsWith('@example.com') || 
+      clientEmail.endsWith('@test.com') || 
+      clientEmail.endsWith('@sample.com') ||
+      clientEmail.endsWith('@localhost')) return;
 
-  const exTitle = (params && params.exhibitionTitle) ? params.exhibitionTitle : "Universal Oleoresins Exhibition";
-  const tzAbbr = (params && params.venueTzAbbr) ? ` ${params.venueTzAbbr}` : '';
-  const timeFormatted = formatTime12h(time) + tzAbbr;
+  const meta = resolveExhibitionMetadata(params || { date: date });
+  const exTitle = meta.title;
+  const exLocation = meta.location;
+  const tzAbbr = meta.tzAbbr;
+  const timeFormatted = formatTime12h(time) + (tzAbbr ? ` ${tzAbbr}` : '');
 
   const subject = `Meeting Cancelled: Universal Oleoresins [Ref: ${ref}]`;
   const bodyText = `Dear ${firstName} ${lastName},\n\n` +
     `Your meeting scheduled for ${date} at ${timeFormatted} with ${salesmanName} at Universal Oleoresins (${exTitle}) has been cancelled.\n\n` +
     `Reference Code: ${ref}\n` +
     `Event: ${exTitle}\n` +
+    `Location: ${exLocation}\n` +
     `Company: ${company}\n\n` +
     `All reserved slots for this meeting have been released. If you wish to reschedule, please visit our scheduler website.\n\n` +
     `Thank you,\nUniversal Oleoresins Team`;
@@ -646,7 +758,14 @@ function sendCancellationEmail(clientEmail, salesmanEmail, ref, firstName, lastN
       </div>
       <div style="padding: 24px; background-color: #ffffff;">
         <p style="font-size: 16px; margin-top: 0;">Dear <strong>${firstName} ${lastName}</strong>,</p>
-        <p style="font-size: 14px; color: #4a3f33; line-height: 1.5;">This is to confirm that your meeting scheduled for <strong>${date} at ${timeFormatted}</strong> with ${salesmanName} (${company}) at <strong>${exTitle}</strong> has been cancelled and the slot has been released.</p>
+        <p style="font-size: 14px; color: #4a3f33; line-height: 1.5;">This is to confirm that your meeting scheduled for <strong>${date} at ${timeFormatted}</strong> with ${salesmanName} (${company}) at <strong>${exTitle}</strong> has been cancelled and all reserved slots have been released.</p>
+        <table style="width: 100%; border-collapse: collapse; margin: 20px 0; background-color: #fbf7f0; border-radius: 8px; overflow: hidden;">
+          <tr><td style="padding: 10px 14px; border-bottom: 1px solid #eee; font-weight: bold; width: 40%;">Reference Code:</td><td style="padding: 10px 14px; border-bottom: 1px solid #eee; color: #d54e1f; font-weight: bold;">${ref}</td></tr>
+          <tr><td style="padding: 10px 14px; border-bottom: 1px solid #eee; font-weight: bold;">Event:</td><td style="padding: 10px 14px; border-bottom: 1px solid #eee; font-weight: bold;">${exTitle}</td></tr>
+          <tr><td style="padding: 10px 14px; border-bottom: 1px solid #eee; font-weight: bold;">Cancelled Schedule:</td><td style="padding: 10px 14px; border-bottom: 1px solid #eee; color: #d54e1f; font-weight: bold;">${date} at ${timeFormatted}</td></tr>
+          <tr><td style="padding: 10px 14px; border-bottom: 1px solid #eee; font-weight: bold;">Location:</td><td style="padding: 10px 14px; border-bottom: 1px solid #eee;">${exLocation}</td></tr>
+          <tr><td style="padding: 10px 14px; font-weight: bold;">Representative:</td><td style="padding: 10px 14px;">${salesmanName}</td></tr>
+        </table>
         <p style="font-size: 13px; color: #666; margin-top: 20px;">If you would like to pick a different date or time, please feel free to book a new slot on our online scheduler.</p>
       </div>
     </div>
@@ -656,6 +775,21 @@ function sendCancellationEmail(clientEmail, salesmanEmail, ref, firstName, lastN
   if (salesmanEmail && salesmanEmail !== clientEmail) {
     try { MailApp.sendEmail({ to: salesmanEmail, subject: `Meeting Cancelled: ${firstName} ${lastName} (${company}) [Ref: ${ref}]`, body: bodyText, htmlBody: bodyHtml }); } catch(e) { try { GmailApp.sendEmail(salesmanEmail, `Meeting Cancelled: ${firstName} ${lastName}`, bodyText, { htmlBody: bodyHtml }); } catch(err) {} }
   }
+}
+
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = {
+    resolveExhibitionMetadata,
+    formatTime12h,
+    calculateMeetingEndTime,
+    sendConfirmationEmail,
+    sendUpdateEmail,
+    sendCancellationEmail,
+    formatPhoneStr,
+    formatDateStr,
+    getSalesmanName,
+    getSalesmanEmail
+  };
 }
 
 /**

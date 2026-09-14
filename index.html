@@ -1736,41 +1736,38 @@
         userDateStr = (uStart.dayDiff !== 0) ? uStart.targetDateStr : '';
       }
 
-      slotsToBook.forEach((slotTime, idx) => {
-        const partRef = idx === 0 ? primaryRef : `${primaryRef}-P${idx + 1}`;
-        const params = new URLSearchParams({
-          action: 'book',
-          exhibitionId: currentExhibitionId,
-          exhibitionTitle: ex ? ex.title : currentExhibitionId,
-          exhibitionVenue: ex ? ex.venue : '',
-          exhibitionLocation: ex ? ex.location : '',
-          venueTzAbbr: vTzAbbr,
-          salesmanId: currentSalesmanId,
-          salesmanName: sObj?.name || currentSalesmanId,
-          salesmanEmail: sObj?.email || '',
-          date: date,
-          time: slotTime,
-          duration: duration,
-          time12: formatTime12(time),
-          endTime12: formatTime12(endTimeVenue),
-          timeSpan: timeSpanVenue,
-          userTimeSpan: userTimeSpan,
-          userTzAbbr: userTzAbbr,
-          userDate: userDateStr,
-          slotCount: slotsToBook.length,
-          slots: slotsToBook.join(','),
-          firstName: booking.firstName,
-          lastName: booking.lastName,
-          company: booking.company,
-          email: booking.email,
-          phone: phoneParam,
-          ref: partRef,
-          notify: idx === 0 ? 'true' : 'false',
-          silent: idx === 0 ? 'false' : 'true'
-        });
-        fetch(APPS_SCRIPT_URL + '?' + params.toString()).catch(err => {
-          console.warn("Background Google Apps Script slot sync error:", err);
-        });
+      const params = new URLSearchParams({
+        action: 'book',
+        exhibitionId: currentExhibitionId,
+        exhibitionTitle: ex ? ex.title : currentExhibitionId,
+        exhibitionVenue: ex ? ex.venue : '',
+        exhibitionLocation: ex ? ex.location : '',
+        venueTzAbbr: vTzAbbr,
+        salesmanId: currentSalesmanId,
+        salesmanName: sObj?.name || currentSalesmanId,
+        salesmanEmail: sObj?.email || '',
+        date: date,
+        time: time,
+        duration: duration,
+        time12: formatTime12(time),
+        endTime12: formatTime12(endTimeVenue),
+        timeSpan: timeSpanVenue,
+        userTimeSpan: userTimeSpan,
+        userTzAbbr: userTzAbbr,
+        userDate: userDateStr,
+        slotCount: slotsToBook.length,
+        slots: slotsToBook.join(','),
+        firstName: booking.firstName,
+        lastName: booking.lastName,
+        company: booking.company,
+        email: booking.email,
+        phone: phoneParam,
+        ref: primaryRef,
+        notify: 'true',
+        silent: 'false'
+      });
+      fetch(APPS_SCRIPT_URL + '?' + params.toString()).catch(err => {
+        console.warn("Background Google Apps Script sync error:", err);
       });
     }
 
@@ -3483,7 +3480,10 @@
       const params = new URLSearchParams({
         action: 'cancel',
         ref: primaryRef,
+        exhibitionId: currentExhibitionId,
         exhibitionTitle: ex ? ex.title : currentExhibitionId,
+        exhibitionVenue: ex ? ex.venue : '',
+        exhibitionLocation: ex ? ex.location : '',
         venueTzAbbr: vTzAbbr,
         notify: 'true',
         silent: 'false'
